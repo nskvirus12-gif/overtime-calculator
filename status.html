@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>야근 현황관리</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@latest/css/SpoqaHanSansNeo.css">
+<link rel="stylesheet" href="styles.css">
+<style>
+  /* ── 페이지 헤더 ── */
+  .page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px; padding-block: 48px 24px; }
+  .page-title { font-family: var(--font-display); font-weight: 800; font-size: clamp(28px, 4vw, 40px); line-height: 1.25; letter-spacing: -0.03em; }
+  .page-desc { margin-top: 8px; color: var(--txt-secondary); }
+  .page-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .notice { margin-bottom: 24px; padding: 14px 20px; border-radius: 12px; background: var(--bg-purple-primary); color: var(--txt-purple-secondary); font-size: 14px; }
+
+  /* ── 레이아웃: 달력·내역 | 요약·정산 ── */
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 24px; align-items: start; padding-bottom: 72px; }
+  .col-main, .col-side { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+  @media (min-width: 1024px) and (min-height: 860px) { .col-side { position: sticky; top: 88px; } }
+  @media (max-width: 1023px) {
+    .layout { display: flex; flex-direction: column; }
+    .col-main, .col-side { display: contents; }
+    .summary { order: 1; } .cal-card { order: 2; } .daily { order: 3; } .salary { order: 4; }
+  }
+
+  /* ── 요약 (플럼 카드) ── */
+  .sum__label { font-size: 15px; font-weight: 500; color: #d9adff; }
+  .sum__value { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .sum__number { font-size: clamp(40px, 6vw, 52px); font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; overflow-wrap: anywhere; }
+  .sum__unit { font-size: 22px; font-weight: 700; color: #d9adff; }
+  .sum__sub { margin-top: 4px; font-size: 14px; color: rgb(255 255 255 / .72); }
+  .summary .bd { margin-top: 24px; padding-top: 24px; border-top: 1px solid rgb(255 255 255 / .18); }
+
+  /* ── 달력 ── */
+  .cal__head { display: flex; align-items: center; gap: 4px; margin-bottom: 20px; }
+  .cal__title { min-width: 132px; margin-inline: 8px; font-family: var(--font-display); font-weight: 800; font-size: 24px; letter-spacing: -0.02em; text-align: center; }
+  .cal__today { margin-left: auto; }
+  .cal__weekdays, .cal__grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  .cal__weekdays span { padding-block: 8px; text-align: center; font-size: 13px; font-weight: 500; color: var(--txt-tertiary); }
+  .cal__weekdays span:first-child { color: var(--status-negative); }
+  .day {
+    position: relative; min-height: 104px; padding: 10px;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+    text-align: left; border: 1px solid var(--border-tertiary); border-radius: 12px; background: var(--bg-primary);
+    transition: background-color .12s ease, border-color .12s ease;
+  }
+  .day:hover { background: var(--bg-secondary); border-color: var(--border-secondary); }
+  .day--blank { border-color: transparent; background: transparent; pointer-events: none; }
+  .day__num { display: grid; place-items: center; min-width: 28px; height: 28px; border-radius: 999px; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .day--sun .day__num { color: var(--status-negative); }
+  .day--today .day__num { background: var(--primary); color: #fff; font-weight: 700; }
+  .day--has { background: var(--bg-purple-primary); border-color: transparent; }
+  .day--has:hover { background: var(--bg-purple-secondary); border-color: transparent; }
+  .day__chip { font-size: 13px; font-weight: 700; color: var(--txt-purple-secondary); font-variant-numeric: tabular-nums; }
+  .day__short { display: none; }
+  .day__range { font-size: 12px; color: var(--txt-tertiary); font-variant-numeric: tabular-nums; }
+  .day__ext { font-size: 12px; font-weight: 500; color: var(--txt-purple-primary); }
+  .day:not(.day--has):not(.day--blank)::after { content: "+ 기록"; position: absolute; left: 10px; bottom: 10px; font-size: 12px; color: var(--txt-tertiary); opacity: 0; transition: opacity .12s ease; }
+  .day:not(.day--has):not(.day--blank):hover::after { opacity: 1; }
+  @media (max-width: 767px) {
+    .cal-card { padding: 16px 12px; }
+    .cal__title { min-width: 0; font-size: 20px; }
+    .cal__weekdays, .cal__grid { gap: 2px; }
+    .day { min-height: 60px; padding: 6px 2px; align-items: center; gap: 2px; border-radius: 10px; }
+    .day__long, .day__range, .day__ext, .day::after { display: none !important; }
+    .day__short { display: inline; }
+    .day__chip { font-size: 11px; }
+  }
+
+  /* ── 일별 내역 ── */
+  .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .section-tools { display: flex; align-items: center; gap: 12px; }
+  .daily__body { margin-top: 12px; }
+  .daily__caption { margin-bottom: 12px; font-size: 14px; color: var(--txt-tertiary); }
+  .toggle svg { transition: transform .2s ease; }
+  .toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+  .section-title { font-family: var(--font-display); font-weight: 800; font-size: 24px; letter-spacing: -0.02em; }
+  .section-count { font-size: 14px; color: var(--txt-tertiary); }
+  @media (max-width: 767px) { .hide-sm { display: none; } }
+
+  /* ── 월 정산 ── */
+  .salary .field { margin-top: 20px; }
+  .rows--light .row.row--total { margin-top: 4px; padding-top: 18px; border-top: 2px solid var(--border-primary); }
+  .row--total dt { font-size: 16px; font-weight: 700; }
+  .row--total dd { font-size: 24px; letter-spacing: -0.02em; color: var(--txt-purple-secondary); }
+  .note { margin-top: 16px; padding: 16px; border-radius: 12px; background: var(--bg-secondary); font-size: 14px; line-height: 1.55; color: var(--txt-secondary); }
+  .note strong { display: block; margin-bottom: 4px; color: var(--txt-primary); }
+  .note ul { padding-left: 18px; list-style: disc; }
+
+  /* ── 연간 누적 (컬러 밴드) ── */
+  .year { padding-block: 72px; background: var(--bg-secondary); }
+  .year h2 { font-family: var(--font-display); font-weight: 800; font-size: 32px; letter-spacing: -0.02em; }
+  .year__lead { margin-top: 8px; color: var(--txt-secondary); }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 32px; }
+  @media (max-width: 1023px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .stat { padding: 24px; border-radius: 20px; background: var(--bg-primary); }
+  .stat__label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--txt-secondary); }
+  .stat__value { margin-top: 8px; font-size: 28px; font-weight: 800; line-height: 1.25; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+  .stat__hint { display: block; margin-top: 4px; font-size: 13px; color: var(--txt-tertiary); }
+  .stat--pay { background: var(--bg-purple-secondary); }
+  .stat--pay .stat__value { color: var(--txt-purple-secondary); }
+
+  .chart-card { margin-top: 16px; padding: 32px; border-radius: 24px; background: var(--bg-primary); }
+  .chart-card__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+  .chart-card__head h3 { font-size: 18px; font-weight: 700; }
+  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--txt-secondary); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .chart { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); margin-top: 24px; }
+  .bar-col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; height: 214px; padding: 0 4px; border: 0; border-radius: 8px 8px 0 0; background: transparent; transition: background-color .12s ease; }
+  .bar-col:hover { background: var(--bg-secondary); }
+  .bar-col[aria-current="true"] { background: var(--bg-purple-primary); }
+  .bar-val { height: 16px; font-size: 12px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums; }
+  .bar { display: flex; flex-direction: column-reverse; width: 100%; max-width: 44px; border-radius: 8px 8px 0 0; overflow: hidden; }
+  .bar__seg { display: block; min-height: 0; }
+  .bar__seg--15 { background: var(--seg-15); }
+  .bar__seg--20 { background: var(--seg-20); }
+  .bar-name { width: 100%; margin-top: 2px; padding-block: 10px 12px; border-top: 1px solid var(--border-secondary); font-size: 13px; color: var(--txt-tertiary); }
+  .bar-col[aria-current="true"] .bar-name { color: var(--txt-purple-secondary); font-weight: 700; }
+  .chart-empty { margin-top: 12px; text-align: center; font-size: 14px; color: var(--txt-tertiary); }
+  @media (max-width: 767px) {
+    .year { padding-block: 56px; }
+    .year h2 { font-size: 26px; }
+    .stat { padding: 20px 16px; }
+    .stat__value { font-size: 22px; }
+    .chart-card { padding: 20px 8px 8px; }
+    .chart-card__head { padding-inline: 8px; }
+    .bar-col { padding: 0 1px; }
+    .bar-val { display: none; }
+    .bar-name { font-size: 11px; }
+  }
+
+  /* ── 모달 안 ── */
+  .modal__fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .preview { padding: 16px; border-radius: 12px; background: var(--bg-secondary); font-size: 15px; color: var(--txt-secondary); }
+  .preview strong { color: var(--txt-primary); font-size: 18px; }
+  .preview.is-error { color: var(--status-negative); }
+  .preview__sub { display: block; margin-top: 4px; font-size: 13px; color: var(--txt-tertiary); }
+</style>
+</head>
+<body>
+<header class="gnb">
+  <div class="container gnb__inner">
+    <a class="brand" href="index.html">
+      <span class="brand__mark" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      </span>
+      야근 수당 계산기
+    </a>
+    <nav class="gnb__nav" aria-label="메뉴">
+      <a href="index.html">계산기</a>
+      <a href="status.html" aria-current="page">현황관리</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="container">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">야근 현황관리</h1>
+        <p class="page-desc">날짜를 눌러 야근 시간을 기록하면 월별·연간으로 자동 누적돼요.</p>
+      </div>
+      <div class="page-actions">
+        <button type="button" class="btn btn--tertiary" id="import">엑셀에서 가져오기</button>
+        <button type="button" class="btn btn--tertiary" id="export">엑셀로 내보내기</button>
+      </div>
+    </div>
+    <p class="notice">기록은 이 브라우저에만 저장돼요. 다른 기기에서는 보이지 않으니, 가끔 엑셀로 내보내 백업해 두세요.</p>
+    <input type="file" id="import-file" accept=".xlsx,.xls,.csv" hidden>
+
+    <div class="layout">
+      <div class="col-main">
+        <!-- 달력 -->
+        <section class="card cal-card" aria-label="달력">
+          <div class="cal__head">
+            <button type="button" class="icon-btn" id="prev" aria-label="이전 달">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+            </button>
+            <h2 class="cal__title" id="cal-title">2026년 9월</h2>
+            <button type="button" class="icon-btn" id="next" aria-label="다음 달">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+            </button>
+            <button type="button" class="btn btn--tertiary btn--s cal__today" id="today">오늘</button>
+          </div>
+          <div class="cal__weekdays" aria-hidden="true"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+          <div class="cal__grid" id="cal-grid"></div>
+        </section>
+
+        <!-- 일별 내역 -->
+        <section class="daily" aria-labelledby="list-title">
+          <div class="section-head">
+            <h2 class="section-title" id="list-title">일별 내역</h2>
+            <div class="section-tools">
+              <span class="section-count" id="list-count"></span>
+              <button type="button" class="btn btn--tertiary btn--s toggle" id="daily-toggle" aria-expanded="false" aria-controls="daily-body">
+                <span class="toggle__text">전체 보기</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="daily__body" id="daily-body">
+          <p class="daily__caption" id="daily-caption"></p>
+          <div class="table-wrap" id="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>날짜</th><th>시간</th><th class="r">총 야근</th>
+                  <th class="r hide-sm">야근 (1.5배)</th><th class="r hide-sm">연장근로 (2배)</th><th><span class="sr-only">수정</span></th>
+                </tr>
+              </thead>
+              <tbody id="entry-body"></tbody>
+              <tfoot id="entry-foot"></tfoot>
+            </table>
+          </div>
+          <p class="empty" id="entry-empty">기록이 없어요. 달력에서 날짜를 눌러 야근 시간을 추가해 보세요.</p>
+          </div>
+        </section>
+      </div>
+
+      <div class="col-side">
+        <!-- 이번 달 요약 -->
+        <section class="card card--plum summary" aria-live="polite">
+          <h2 class="sum__label" id="sum-label">이번 달 예상 야근 수당</h2>
+          <p class="sum__value num"><span class="sum__number" id="sum-number">0</span><span class="sum__unit">원</span></p>
+          <p class="sum__sub" id="sum-sub"></p>
+          <div class="bd" id="month-breakdown"></div>
+        </section>
+
+        <!-- 정산 -->
+        <section class="card salary" aria-labelledby="calc-title">
+          <h2 class="card__title" id="calc-title">이번 달 정산</h2>
+          <div class="field" id="field-salary">
+            <label class="field__label" for="salary">월급</label>
+            <div class="input">
+              <input class="num" id="salary" type="text" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="salary-help">
+              <span class="input__suffix">원</span>
+            </div>
+            <p class="field__help" id="salary-help">통상시급을 구할 때 기준이 되는 월 급여예요. 모든 달에 똑같이 적용돼요.</p>
+          </div>
+          <dl class="rows rows--light" style="margin-top:12px">
+            <div class="row"><dt>통상시급<small>월급 ÷ 209시간</small></dt><dd class="num" id="out-hourly">0원</dd></div>
+            <div class="row"><dt>야근 수당 (1.5배)<small id="sub-base">시급 × 1.5 × 0시간</small></dt><dd class="num" id="out-base">0원</dd></div>
+            <div class="row"><dt>연장근로 추가 가산 (0.5배)<small id="sub-extra">시급 × 0.5 × 0시간</small></dt><dd class="num" id="out-extra">0원</dd></div>
+            <div class="row row--total"><dt>총 추가 근무 수당 합계<small>야근 수당 + 연장근로 추가 가산</small></dt><dd class="num" id="out-total">0원</dd></div>
+          </dl>
+          <div class="note">
+            <strong>연장근로는 자동으로 계산돼요</strong>
+            <ul>
+              <li>평일(월~금): 22시 이후 근무한 시간</li>
+              <li>주말(토·일): 8시간을 넘겨 근무한 시간</li>
+              <li>공휴일은 구분하지 않고 평일로 계산해요.</li>
+            </ul>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- 연간 누적 -->
+  <section class="year" aria-labelledby="year-title">
+    <div class="container">
+      <h2 id="year-title">2026년 누적</h2>
+      <p class="year__lead">올해 야근 시간을 1.5배 구간과 2배 구간으로 나눠 보여드려요.</p>
+
+      <div class="stats">
+        <div class="stat">
+          <p class="stat__label">누적 야근 시간</p>
+          <p class="stat__value num" id="y-total">0시간</p>
+        </div>
+        <div class="stat">
+          <p class="stat__label"><span class="bd__dot bd__dot--15"></span>야근 시간 (1.5배)</p>
+          <p class="stat__value num" id="y-15">0시간</p>
+        </div>
+        <div class="stat">
+          <p class="stat__label"><span class="bd__dot bd__dot--20"></span>연장근로 시간 (2배)</p>
+          <p class="stat__value num" id="y-20">0시간</p>
+        </div>
+        <div class="stat stat--pay">
+          <p class="stat__label">누적 예상 수당</p>
+          <p class="stat__value num" id="y-pay">0원</p>
+          <small class="stat__hint" id="y-pay-hint" hidden>월급을 입력하면 금액이 계산돼요</small>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-card__head">
+          <h3>월별 야근 시간</h3>
+          <div class="legend" aria-hidden="true">
+            <span><i class="bd__dot bd__dot--15"></i>야근 (1.5배)</span>
+            <span><i class="bd__dot bd__dot--20"></i>연장근로 (2배)</span>
+          </div>
+        </div>
+        <div class="chart" id="chart"></div>
+        <p class="chart-empty" id="chart-empty">이 해에는 아직 기록이 없어요.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <span>야근 수당 계산기</span>
+    <span>기록은 이 브라우저에만 저장돼요.</span>
+  </div>
+</footer>
+
+<!-- 야근 시간 입력 (PC: 모달 / 모바일: 바텀 시트) -->
+<dialog class="modal" id="sheet" aria-labelledby="sheet-title">
+  <div class="modal__body">
+    <div class="modal__head">
+      <div>
+        <h2 class="modal__title" id="sheet-title">9월 21일 (일)</h2>
+        <p class="modal__desc">야근한 시간을 30분 단위로 선택해 주세요.</p>
+      </div>
+      <button type="button" class="icon-btn" id="sheet-close" aria-label="닫기">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <div class="modal__fields">
+      <div class="field">
+        <label class="field__label" for="start">시작</label>
+        <div class="input">
+          <select id="start"></select>
+          <span class="input__chevron" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field__label" for="end">종료</label>
+        <div class="input">
+          <select id="end"></select>
+          <span class="input__chevron" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+        </div>
+      </div>
+    </div>
+
+    <p class="preview" id="preview" aria-live="polite"></p>
+
+    <div class="modal__actions">
+      <button type="button" class="btn btn--tertiary btn--negative" id="delete">삭제</button>
+      <button type="button" class="btn btn--tertiary" id="cancel">취소</button>
+      <button type="button" class="btn btn--primary" id="save">저장</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+  // ── 계산 로직 (index.html / Python calculate_overtime 과 동일) ──
+  const STANDARD_HOURS = 209;
+  function calculateOvertime(netSalary, totalOvertimeHours, extendedWorkHours) {
+    const baseHourlyRate = netSalary / STANDARD_HOURS;
+    const rate15 = baseHourlyRate * 1.5;
+    const rate05 = baseHourlyRate * 0.5;
+    const baseOvertimePay = rate15 * totalOvertimeHours;
+    const extraExtendedPay = rate05 * extendedWorkHours;
+    const totalOvertimePay = baseOvertimePay + extraExtendedPay;
+    return { baseHourlyRate, baseOvertimePay, extraExtendedPay, totalOvertimePay };
+  }
+
+  // ── 유틸 ──
+  const $ = (id) => document.getElementById(id);
+  const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+  const TIME_RE = /^\d{2}:\d{2}$/;
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const pad = (n) => String(n).padStart(2, '0');
+  const keyOf = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
+  const won = (n) => Math.round(n).toLocaleString('ko-KR');
+  const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+
+  // 시작~종료 사이 분. 종료가 시작보다 이르면 다음 날로 계산해요.
+  function spanMinutes(start, end) {
+    if (!TIME_RE.test(start) || !TIME_RE.test(end)) return 0;
+    const s = toMin(start);
+    let e = toMin(end);
+    if (e === s) return 0;
+    if (e < s) e += 1440;
+    return e - s;
+  }
+  const crossesMidnight = (start, end) => toMin(end) < toMin(start);
+  function fmtDur(min) {
+    const h = Math.floor(min / 60), m = min % 60;
+    if (!h && !m) return '0시간';
+    return [h ? `${h}시간` : '', m ? `${m}분` : ''].filter(Boolean).join(' ');
+  }
+  const fmtHoursShort = (min) => `${Number((min / 60).toFixed(1))}h`;
+
+  // 연장근로 자동 계산 (분)
+  //  - 평일(월~금): 22시 이후 근무한 시간
+  //  - 주말(토·일): 8시간을 넘겨 근무한 시간
+  const NIGHT_START = 22 * 60;
+  const WEEKEND_BASE = 8 * 60;
+  const isWeekendKey = (key) => {
+    const [y, m, d] = key.split('-').map(Number);
+    const dow = new Date(y, m - 1, d).getDay();
+    return dow === 0 || dow === 6;
+  };
+  function extMinutes(key, start, end) {
+    const mins = spanMinutes(start, end);
+    if (!mins) return 0;
+    if (isWeekendKey(key)) return Math.max(0, mins - WEEKEND_BASE);
+    const s = toMin(start);
+    return Math.max(0, s + mins - Math.max(s, NIGHT_START)); // 종료가 자정을 넘어도 이어서 계산해요
+  }
+
+  // ── 저장소 ──
+  const STORE_KEY = 'overtime.tracker.v1';
+
+  // 30분 단위로 맞춰요. (가져온 파일에 1분 단위 기록이 있어도 가장 가까운 30분으로 바뀌어요)
+  function snap30(t) {
+    const total = (Math.round(toMin(t) / 30) * 30) % 1440;
+    return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
+  }
+
+  function normalize(raw) {
+    const out = { salary: 0, entries: {} };
+    if (!raw || typeof raw !== 'object') return out;
+    const salary = Number(raw.salary);
+    if (Number.isFinite(salary) && salary > 0) out.salary = Math.round(salary);
+    const src = raw.entries && typeof raw.entries === 'object' ? raw.entries : {};
+    for (const [k, e] of Object.entries(src)) {
+      if (!DATE_RE.test(k) || !e || !TIME_RE.test(e.start) || !TIME_RE.test(e.end)) continue;
+      const start = snap30(e.start), end = snap30(e.end);
+      if (!spanMinutes(start, end)) continue;
+      out.entries[k] = { start, end }; // 연장근로는 저장하지 않고 날짜·시간으로 매번 계산해요
+    }
+    return out;
+  }
+  function load() {
+    try { return normalize(JSON.parse(localStorage.getItem(STORE_KEY))); }
+    catch (err) { return normalize(null); }
+  }
+  let state = load();
+  function persist() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+    catch (err) { toast('이 브라우저에 저장하지 못했어요. 엑셀로 내보내 백업해 두세요'); }
+  }
+
+  // ── 집계 ──
+  function statsFor(y, m) {
+    const prefix = `${y}-${pad(m + 1)}-`;
+    let minutes = 0, ext = 0, days = 0;
+    for (const [k, e] of Object.entries(state.entries)) {
+      if (!k.startsWith(prefix)) continue;
+      minutes += spanMinutes(e.start, e.end);
+      ext += extMinutes(k, e.start, e.end);
+      days += 1;
+    }
+    const r = calculateOvertime(state.salary, minutes / 60, ext / 60);
+    // 합계는 원본 합계를 반올림하고, 추가 가산은 차액으로 맞춰 1원 오차를 없애요.
+    const total = Math.round(r.totalOvertimePay);
+    const base = Math.round(r.baseOvertimePay);
+    return { minutes, ext, days, hourly: r.baseHourlyRate, total, base, extra: total - base };
+  }
+
+  // ── 상태 ──
+  const now = new Date();
+  const view = { y: now.getFullYear(), m: now.getMonth() };
+  let editingKey = null;
+
+  // ── 렌더 ──
+  // 총 야근 시간을 1.5배 구간(야근)과 2배 구간(연장근로)으로 나눠 보여줘요.
+  // 연장근로는 1.5배에 0.5배가 더 붙어 2배가 돼요.
+  function renderBreakdown(el, totalLabel, minutes, extMin) {
+    const normal = minutes - extMin;
+    const row = (cls, dotCls, label, min) => {
+      const r = document.createElement('div');
+      r.className = `bd__row ${cls}`.trim();
+      const l = document.createElement('span');
+      l.className = 'bd__label';
+      if (dotCls) {
+        const dot = document.createElement('i');
+        dot.className = `bd__dot ${dotCls}`;
+        l.appendChild(dot);
+      }
+      l.append(label);
+      const v = document.createElement('span');
+      v.className = 'bd__value num';
+      v.textContent = fmtDur(min);
+      r.append(l, v);
+      return r;
+    };
+    const bar = document.createElement('div');
+    bar.className = 'bd__bar';
+    bar.setAttribute('aria-hidden', 'true');
+    [['bd__seg--15', normal], ['bd__seg--20', extMin]].forEach(([cls, min]) => {
+      const seg = document.createElement('span');
+      seg.className = `bd__seg ${cls}`;
+      seg.style.width = minutes ? `${(min / minutes) * 100}%` : '0%';
+      bar.appendChild(seg);
+    });
+    el.replaceChildren(
+      row('bd__row--total', '', totalLabel, minutes),
+      bar,
+      row('', 'bd__dot--15', '야근 시간 (1.5배)', normal),
+      row('', 'bd__dot--20', '연장근로 시간 (2배)', extMin),
+    );
+  }
+
+  function renderSummary(s) {
+    $('sum-label').textContent = `${view.m + 1}월 예상 야근 수당`;
+    $('sum-number').textContent = s.total.toLocaleString('ko-KR');
+    $('sum-sub').textContent = s.days === 0
+      ? '아직 기록이 없어요. 달력에서 날짜를 눌러 추가해 보세요.'
+      : !state.salary
+        ? `야근 ${s.days}일 · 아래에서 월급을 입력하면 금액이 계산돼요`
+        : `야근 ${s.days}일`;
+    renderBreakdown($('month-breakdown'), `${view.m + 1}월 총 야근 시간`, s.minutes, s.ext);
+  }
+
+  function renderCalendar() {
+    $('cal-title').textContent = `${view.y}년 ${view.m + 1}월`;
+    const first = new Date(view.y, view.m, 1).getDay();
+    const days = new Date(view.y, view.m + 1, 0).getDate();
+    const todayKey = keyOf(now.getFullYear(), now.getMonth(), now.getDate());
+    const frag = document.createDocumentFragment();
+    const span = (cls, text) => { const s = document.createElement('span'); s.className = cls; s.textContent = text; return s; };
+
+    for (let i = 0; i < first; i++) {
+      const blank = document.createElement('div');
+      blank.className = 'day day--blank';
+      frag.appendChild(blank);
+    }
+    for (let d = 1; d <= days; d++) {
+      const key = keyOf(view.y, view.m, d);
+      const entry = state.entries[key];
+      const dow = (first + d - 1) % 7;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.key = key;
+      btn.className = 'day' + (dow === 0 ? ' day--sun' : '') + (key === todayKey ? ' day--today' : '') + (entry ? ' day--has' : '');
+      const mins = entry ? spanMinutes(entry.start, entry.end) : 0;
+      const extMin = entry ? extMinutes(key, entry.start, entry.end) : 0;
+      btn.setAttribute('aria-label', `${view.m + 1}월 ${d}일 ${WEEK[dow]}요일${entry ? `, 야근 ${fmtDur(mins)}` : ', 기록 없음'}`);
+      btn.appendChild(span('day__num', d));
+      if (entry) {
+        const chip = span('day__chip', '');
+        chip.append(span('day__long', fmtDur(mins)), span('day__short', fmtHoursShort(mins)));
+        btn.appendChild(chip);
+        btn.appendChild(span('day__range', `${entry.start}–${crossesMidnight(entry.start, entry.end) ? '익일 ' : ''}${entry.end}`));
+        if (extMin) btn.appendChild(span('day__ext', `연장 ${fmtDur(extMin)}`));
+      }
+      frag.appendChild(btn);
+    }
+    $('cal-grid').replaceChildren(frag);
+  }
+
+  // 일별 내역: 기본은 오늘 기준 가까운 과거 기록 3건, 펼치면 보고 있는 달의 전체 기록
+  const RECENT_COUNT = 3;
+  let dailyOpen = false;
+
+  function renderTable() {
+    const todayKey = keyOf(now.getFullYear(), now.getMonth(), now.getDate());
+    const allKeys = Object.keys(state.entries);
+    const monthPrefix = `${view.y}-${pad(view.m + 1)}-`;
+    const monthKeys = allKeys.filter((k) => k.startsWith(monthPrefix)).sort();
+    // 날짜 문자열(YYYY-MM-DD)은 글자 순서 = 날짜 순서예요. 오늘까지의 기록 중 가장 가까운 순으로 3건.
+    const recentKeys = allKeys.filter((k) => k <= todayKey).sort().reverse().slice(0, RECENT_COUNT);
+    const keys = dailyOpen ? monthKeys : recentKeys;
+
+    $('daily-caption').textContent = dailyOpen
+      ? `${view.y}년 ${view.m + 1}월 전체 기록`
+      : '오늘 기준 가까운 과거 기록';
+    $('list-count').textContent = dailyOpen
+      ? (monthKeys.length ? `${monthKeys.length}일` : '')
+      : (recentKeys.length ? `${recentKeys.length}건` : '');
+    $('table-wrap').hidden = keys.length === 0;
+    $('entry-empty').hidden = keys.length > 0;
+    $('entry-empty').textContent = dailyOpen
+      ? '이 달에는 기록이 없어요. 달력에서 날짜를 눌러 야근 시간을 추가해 보세요.'
+      : '아직 기록이 없어요. 달력에서 날짜를 눌러 야근 시간을 추가해 보세요.';
+
+    const cell = (text, cls) => {
+      const td = document.createElement('td');
+      if (cls) td.className = cls;
+      td.textContent = text;
+      return td;
+    };
+    const dur = (min) => (min ? fmtDur(min) : '–');
+    const durCls = (min, base) => `${base} num${min ? '' : ' muted'}`;
+
+    const body = document.createDocumentFragment();
+    let sumMin = 0, sumExt = 0;
+    for (const k of keys) {
+      const e = state.entries[k];
+      const mins = spanMinutes(e.start, e.end);
+      const ext = extMinutes(k, e.start, e.end);
+      sumMin += mins; sumExt += ext;
+      const [y, m, d] = k.split('-').map(Number);
+      const dow = new Date(y, m - 1, d).getDay();
+      // 최근 3건은 달이 섞이므로 월을 함께 보여주고, 올해가 아니면 연도도 붙여요.
+      const dateText = `${!dailyOpen && y !== now.getFullYear() ? `${y}년 ` : ''}${m}월 ${d}일 (${WEEK[dow]})`;
+
+      const tr = document.createElement('tr');
+      tr.dataset.key = k;
+      const edit = document.createElement('td');
+      edit.className = 'r';
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button'; editBtn.className = 'btn btn--text btn--s'; editBtn.textContent = '수정';
+      edit.appendChild(editBtn);
+      tr.append(
+        cell(dateText),
+        cell(`${e.start} ~ ${crossesMidnight(e.start, e.end) ? '익일 ' : ''}${e.end}`, 'num'),
+        cell(fmtDur(mins), 'r num'),
+        cell(dur(mins - ext), durCls(mins - ext, 'r hide-sm')),
+        cell(dur(ext), durCls(ext, 'r hide-sm')),
+        edit,
+      );
+      body.appendChild(tr);
+    }
+    $('entry-body').replaceChildren(body);
+
+    // 합계 행은 한 달 전체를 볼 때만 보여줘요.
+    const foot = document.createElement('tr');
+    const label = cell('합계');
+    label.colSpan = 2;
+    foot.append(label, cell(fmtDur(sumMin), 'r num'), cell(dur(sumMin - sumExt), 'r hide-sm num'), cell(dur(sumExt), 'r hide-sm num'), cell(''));
+    $('entry-foot').replaceChildren(...(dailyOpen && keys.length ? [foot] : []));
+  }
+
+  function renderDetail(s) {
+    $('calc-title').textContent = `${view.m + 1}월 정산`;
+    $('out-hourly').textContent = `${won(s.hourly)}원`;
+    $('out-base').textContent = `${s.base.toLocaleString('ko-KR')}원`;
+    $('out-extra').textContent = `${s.extra.toLocaleString('ko-KR')}원`;
+    $('out-total').textContent = `${s.total.toLocaleString('ko-KR')}원`;
+    $('sub-base').textContent = `시급 × 1.5 × ${fmtDur(s.minutes)}`;
+    $('sub-extra').textContent = `시급 × 0.5 × ${fmtDur(s.ext)}`;
+  }
+
+  function renderYear() {
+    $('year-title').textContent = `${view.y}년 누적`;
+    const stats = Array.from({ length: 12 }, (_, m) => statsFor(view.y, m));
+    const minutes = stats.reduce((a, s) => a + s.minutes, 0);
+    const ext = stats.reduce((a, s) => a + s.ext, 0);
+    const pay = stats.reduce((a, s) => a + s.total, 0);
+    const max = Math.max(...stats.map((s) => s.minutes));
+
+    $('y-total').textContent = fmtDur(minutes);
+    $('y-15').textContent = fmtDur(minutes - ext);
+    $('y-20').textContent = fmtDur(ext);
+    $('y-pay').textContent = `${pay.toLocaleString('ko-KR')}원`;
+    $('y-pay-hint').hidden = !!state.salary || minutes === 0;
+    $('chart-empty').hidden = minutes > 0;
+
+    const BAR_MAX = 130; // px
+    const frag = document.createDocumentFragment();
+    stats.forEach((s, m) => {
+      const col = document.createElement('button');
+      col.type = 'button'; col.className = 'bar-col'; col.dataset.month = m;
+      if (m === view.m) col.setAttribute('aria-current', 'true');
+      const summary = s.minutes ? `${fmtDur(s.minutes)} (1.5배 ${fmtDur(s.minutes - s.ext)}, 2배 ${fmtDur(s.ext)})${state.salary ? `, ${won(s.total)}원` : ''}` : '기록 없음';
+      col.setAttribute('aria-label', `${m + 1}월 ${summary}`);
+      col.title = `${m + 1}월 · ${summary}`;
+
+      const val = document.createElement('span');
+      val.className = 'bar-val num';
+      val.textContent = s.minutes ? fmtHoursShort(s.minutes) : '';
+      const bar = document.createElement('span');
+      bar.className = 'bar';
+      bar.style.height = s.minutes ? `${Math.max(4, Math.round((s.minutes / max) * BAR_MAX))}px` : '0';
+      [['bar__seg--15', s.minutes - s.ext], ['bar__seg--20', s.ext]].forEach(([cls, min]) => {
+        const seg = document.createElement('span');
+        seg.className = `bar__seg ${cls}`;
+        seg.style.flex = `${min} 0 0`;
+        bar.appendChild(seg);
+      });
+      const name = document.createElement('span');
+      name.className = 'bar-name';
+      name.textContent = `${m + 1}월`;
+      col.append(val, bar, name);
+      frag.appendChild(col);
+    });
+    $('chart').replaceChildren(frag);
+  }
+
+  function renderAll() {
+    const s = statsFor(view.y, view.m);
+    renderSummary(s); renderCalendar(); renderTable(); renderDetail(s); renderYear();
+  }
+
+  // ── 월 이동 ──
+  function shiftMonth(delta) {
+    const d = new Date(view.y, view.m + delta, 1);
+    view.y = d.getFullYear(); view.m = d.getMonth();
+    renderAll();
+  }
+  $('prev').addEventListener('click', () => shiftMonth(-1));
+  $('next').addEventListener('click', () => shiftMonth(1));
+  $('today').addEventListener('click', () => { view.y = now.getFullYear(); view.m = now.getMonth(); renderAll(); });
+
+  // 일별 내역 전체 보기 / 최근 3건만 보기 (기본값: 최근 3건)
+  $('daily-toggle').addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    dailyOpen = !dailyOpen;
+    btn.setAttribute('aria-expanded', String(dailyOpen));
+    btn.querySelector('.toggle__text').textContent = dailyOpen ? '최근 3건만' : '전체 보기';
+    renderTable();
+  });
+
+  $('cal-grid').addEventListener('click', (e) => { const b = e.target.closest('.day[data-key]'); if (b) openSheet(b.dataset.key); });
+  $('entry-body').addEventListener('click', (e) => { const r = e.target.closest('tr[data-key]'); if (r) openSheet(r.dataset.key); });
+  $('chart').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-month]');
+    if (!b) return;
+    view.m = Number(b.dataset.month);
+    renderAll();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  // ── 월급 ──
+  const salaryInput = $('salary');
+  salaryInput.value = state.salary ? state.salary.toLocaleString('ko-KR') : '';
+  salaryInput.addEventListener('input', () => {
+    const digits = salaryInput.value.replace(/[^\d]/g, '').replace(/^0+(?=\d)/, '');
+    salaryInput.value = digits ? Number(digits).toLocaleString('ko-KR') : '';
+    state.salary = Number(digits) || 0;
+    persist();
+    renderAll();
+  });
+
+  // ── 입력 모달 ──
+  const sheet = $('sheet');
+  const startEl = $('start'), endEl = $('end');
+
+  // 00:00 ~ 23:30, 30분 간격 선택지
+  [startEl, endEl].forEach((select) => {
+    for (let i = 0; i < 48; i++) {
+      const value = `${pad(Math.floor(i / 2))}:${i % 2 ? '30' : '00'}`;
+      select.add(new Option(value, value));
+    }
+  });
+
+  function openSheet(key) {
+    editingKey = key;
+    const entry = state.entries[key];
+    const [y, m, d] = key.split('-').map(Number);
+    $('sheet-title').textContent = `${m}월 ${d}일 (${WEEK[new Date(y, m - 1, d).getDay()]})`;
+    startEl.value = entry ? entry.start : '18:00';
+    endEl.value = entry ? entry.end : '21:00';
+    $('delete').hidden = !entry;
+    updatePreview();
+    sheet.showModal();
+    (entry ? startEl : endEl).focus();
+  }
+
+  function updatePreview() {
+    const mins = spanMinutes(startEl.value, endEl.value);
+    const p = $('preview');
+    p.replaceChildren();
+    p.classList.toggle('is-error', !mins);
+    $('save').disabled = !mins;
+
+    if (!mins) {
+      p.textContent = '시작과 종료 시간이 같아요. 다시 확인해 주세요.';
+      return;
+    }
+    const extMin = extMinutes(editingKey, startEl.value, endEl.value);
+    const strong = document.createElement('strong');
+    strong.textContent = fmtDur(mins);
+    p.append('야근 ', strong);
+    if (crossesMidnight(startEl.value, endEl.value)) p.append(' · 종료는 다음 날이에요');
+
+    const sub = document.createElement('span');
+    sub.className = 'preview__sub';
+    sub.textContent = `연장근로 ${fmtDur(extMin)} (자동) · ${isWeekendKey(editingKey) ? '주말은 8시간을 넘긴 시간' : '평일은 22시 이후 근무 시간'}`;
+    p.appendChild(sub);
+  }
+
+  [startEl, endEl].forEach((el) => el.addEventListener('input', updatePreview));
+
+  $('save').addEventListener('click', () => {
+    if (!spanMinutes(startEl.value, endEl.value)) return;
+    state.entries[editingKey] = { start: startEl.value, end: endEl.value };
+    persist(); sheet.close(); renderAll();
+    toast('저장했어요');
+  });
+  $('delete').addEventListener('click', () => {
+    delete state.entries[editingKey];
+    persist(); sheet.close(); renderAll();
+    toast('삭제했어요');
+  });
+  $('cancel').addEventListener('click', () => sheet.close());
+  $('sheet-close').addEventListener('click', () => sheet.close());
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); });
+
+  // ── 엑셀 백업 ──
+  // 파일: [야근기록] 날짜·시작·종료 (가져올 때 읽는 열) + 계산된 시간 열 / [월별 요약] / [설정] 월급
+  const XLSX_MISSING = '엑셀 기능을 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요';
+  const RECORD_HEAD = ['날짜', '요일', '시작', '종료', '총 야근 시간(시간)', '야근 시간 1.5배(시간)', '연장근로 시간 2배(시간)'];
+  const SUMMARY_HEAD = ['월', '야근 일수', '총 야근 시간(시간)', '야근 시간 1.5배(시간)', '연장근로 시간 2배(시간)', '예상 수당(원)'];
+
+  $('export').addEventListener('click', () => {
+    if (typeof XLSX === 'undefined') return toast(XLSX_MISSING);
+    const hours = (min) => Number((min / 60).toFixed(2));
+    const keys = Object.keys(state.entries).sort();
+
+    const records = keys.map((k) => {
+      const e = state.entries[k];
+      const mins = spanMinutes(e.start, e.end);
+      const ext = extMinutes(k, e.start, e.end);
+      const [y, m, d] = k.split('-').map(Number);
+      return {
+        '날짜': k, '요일': WEEK[new Date(y, m - 1, d).getDay()], '시작': e.start, '종료': e.end,
+        '총 야근 시간(시간)': hours(mins), '야근 시간 1.5배(시간)': hours(mins - ext), '연장근로 시간 2배(시간)': hours(ext),
+      };
+    });
+    const summary = [...new Set(keys.map((k) => k.slice(0, 7)))].map((ym) => {
+      const [y, m] = ym.split('-').map(Number);
+      const s = statsFor(y, m - 1);
+      return {
+        '월': ym, '야근 일수': s.days, '총 야근 시간(시간)': hours(s.minutes),
+        '야근 시간 1.5배(시간)': hours(s.minutes - s.ext), '연장근로 시간 2배(시간)': hours(s.ext), '예상 수당(원)': s.total,
+      };
+    });
+
+    const wb = XLSX.utils.book_new();
+    const addSheet = (name, data, header, widths) => {
+      const ws = XLSX.utils.json_to_sheet(data, { header });
+      ws['!cols'] = widths.map((wch) => ({ wch }));
+      XLSX.utils.book_append_sheet(wb, ws, name);
+    };
+    addSheet('야근기록', records, RECORD_HEAD, [12, 6, 8, 8, 18, 22, 24]);
+    addSheet('월별 요약', summary, SUMMARY_HEAD, [10, 10, 18, 22, 24, 14]);
+    addSheet('설정', [{ '항목': '월급', '값': state.salary }], ['항목', '값'], [10, 14]);
+    XLSX.writeFile(wb, `야근기록-${keyOf(now.getFullYear(), now.getMonth(), now.getDate())}.xlsx`);
+    toast('엑셀 파일로 내보냈어요');
+  });
+
+  // 엑셀 셀 값 → 'YYYY-MM-DD' / 'HH:MM'. 글자로 적은 값과 엑셀이 날짜·시간으로 바꾼 값을 모두 읽어요.
+  function cellToDateKey(v) {
+    let y, m, d;
+    if (typeof v === 'number') {
+      const p = XLSX.SSF.parse_date_code(v);
+      if (!p) return '';
+      ({ y, m, d } = p);
+    } else {
+      const t = String(v).trim().match(/^(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+      if (!t) return '';
+      [y, m, d] = t.slice(1).map(Number);
+    }
+    const date = new Date(y, m - 1, d);
+    if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return '';
+    return keyOf(y, m - 1, d);
+  }
+  function cellToTime(v) {
+    let min;
+    if (typeof v === 'number') {
+      min = Math.round((v % 1) * 1440); // 엑셀의 시간 값은 하루(1.0) 중 몇 %인지로 저장돼요
+    } else {
+      const t = String(v).trim().match(/^(\d{1,2}):(\d{2})/);
+      if (!t) return '';
+      min = Number(t[1]) * 60 + Number(t[2]);
+    }
+    min = ((min % 1440) + 1440) % 1440;
+    return `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
+  }
+
+  $('import').addEventListener('click', () => $('import-file').click());
+  $('import-file').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (typeof XLSX === 'undefined') return toast(XLSX_MISSING);
+    try {
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const recordSheet = wb.Sheets['야근기록'] || wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(recordSheet, { defval: '' });
+
+      const entries = {};
+      for (const r of rows) {
+        const key = cellToDateKey(r['날짜']), start = cellToTime(r['시작']), end = cellToTime(r['종료']);
+        if (!key || !start || !end) continue;
+        entries[key] = { start, end }; // 같은 날짜가 여러 줄이면 마지막 줄을 써요
+      }
+
+      let salary = state.salary; // 파일에 월급이 없으면 지금 값을 유지해요
+      if (wb.Sheets['설정']) {
+        const row = XLSX.utils.sheet_to_json(wb.Sheets['설정']).find((r) => r['항목'] === '월급');
+        const value = row ? Number(String(row['값']).replace(/[^\d]/g, '')) : 0;
+        if (value > 0) salary = value;
+      }
+
+      const next = normalize({ salary, entries });
+      const count = Object.keys(next.entries).length;
+      if (!count) return toast('가져올 기록을 찾지 못했어요. 날짜·시작·종료 열이 있는지 확인해 주세요');
+
+      const skipped = rows.length - count;
+      if (!confirm(`엑셀 파일의 기록 ${count}일을 불러올까요?${skipped > 0 ? `\n(읽지 못했거나 겹치는 ${skipped}줄은 제외돼요)` : ''}\n지금 저장된 기록은 모두 바뀌어요.`)) return;
+      state = next;
+      persist();
+      salaryInput.value = state.salary ? state.salary.toLocaleString('ko-KR') : '';
+      renderAll();
+      toast(`${count}일의 기록을 불러왔어요`);
+    } catch (err) {
+      toast('파일을 읽지 못했어요. 엑셀(.xlsx) 파일인지 확인해 주세요');
+    }
+  });
+
+  // ── 토스트 ──
+  let toastTimer;
+  function toast(message) {
+    const el = $('toast');
+    el.textContent = message;
+    el.classList.add('is-visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('is-visible'), 2400);
+  }
+
+  renderAll();
+</script>
+</body>
+</html>

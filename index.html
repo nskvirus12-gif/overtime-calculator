@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>야근 수당 계산기</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@latest/css/SpoqaHanSansNeo.css">
+<link rel="stylesheet" href="styles.css">
+<style>
+  /* ── hero (컬러 밴드) ── */
+  .hero { background: var(--bg-purple-primary); padding-block: 72px 128px; text-align: center; }
+  .hero h1 { margin-top: 20px; font-family: var(--font-display); font-weight: 800; font-size: clamp(32px, 5vw, 56px); line-height: 1.25; letter-spacing: -0.03em; text-wrap: balance; }
+  .hero p { margin: 16px auto 0; max-width: 520px; font-size: 18px; line-height: 1.6; color: var(--txt-secondary); text-wrap: balance; }
+  @media (max-width: 767px) { .hero { padding-block: 48px 96px; } .hero p { font-size: 16px; } }
+
+  /* ── 계산 영역: 입력 | 결과 ── */
+  .calc { position: relative; margin-top: -72px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 460px); gap: 24px; align-items: start; }
+  @media (max-width: 1023px) { .calc { grid-template-columns: minmax(0, 1fr); margin-top: -56px; } }
+  .calc__result { position: sticky; top: 88px; }
+  @media (max-width: 1023px) { .calc__result { position: static; } }
+
+  .form-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 28px; }
+  .form { display: flex; flex-direction: column; gap: 28px; }
+
+  .result__label { font-size: 15px; font-weight: 500; color: #d9adff; }
+  .result__value { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .result__number { font-size: clamp(40px, 6vw, 56px); font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; overflow-wrap: anywhere; }
+  .result__unit { font-size: 24px; font-weight: 700; color: #d9adff; }
+  .result__rows { margin-block: 20px 24px; padding-top: 12px; border-top: 1px solid rgb(255 255 255 / .18); }
+
+  /* ── 계산 방법 ── */
+  .method { padding-block: 80px; }
+  .method h2 { font-family: var(--font-display); font-weight: 800; font-size: 32px; letter-spacing: -0.02em; }
+  .method__lead { margin-top: 8px; color: var(--txt-secondary); }
+  .method__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 32px; }
+  @media (max-width: 1023px) { .method__grid { grid-template-columns: minmax(0, 1fr); } }
+  .formula { padding: 28px; border-radius: 20px; background: var(--bg-secondary); }
+  .formula h3 { font-size: 15px; font-weight: 500; color: var(--txt-tertiary); }
+  .formula p { margin-top: 12px; font-size: 20px; font-weight: 700; line-height: 1.4; letter-spacing: -0.01em; }
+  .formula small { display: block; margin-top: 8px; font-size: 14px; color: var(--txt-secondary); }
+  .method__note { margin-top: 24px; font-size: 14px; color: var(--txt-tertiary); }
+  @media (max-width: 767px) { .method { padding-block: 56px; } .method h2 { font-size: 26px; } }
+</style>
+</head>
+<body>
+<header class="gnb">
+  <div class="container gnb__inner">
+    <a class="brand" href="index.html">
+      <span class="brand__mark" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      </span>
+      야근 수당 계산기
+    </a>
+    <nav class="gnb__nav" aria-label="메뉴">
+      <a href="index.html" aria-current="page">계산기</a>
+      <a href="status.html">현황관리</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="container">
+      <span class="pill">야근 수당 계산기</span>
+      <h1>이번 달 야근,<br>얼마나 받을 수 있을까요?</h1>
+      <p>월급과 야근 시간을 입력하면 예상 수당을 바로 계산해 드려요.</p>
+    </div>
+  </section>
+
+  <div class="container calc">
+    <section class="card" aria-labelledby="form-title">
+      <div class="form-head">
+        <h2 class="card__title" id="form-title">정보 입력</h2>
+        <button type="button" class="btn btn--text btn--s" id="reset">초기화</button>
+      </div>
+
+      <form class="form" id="form" novalidate autocomplete="off">
+        <div class="field" id="field-salary">
+          <label class="field__label" for="salary">월급</label>
+          <div class="input">
+            <input class="num" id="salary" name="salary" type="text" inputmode="numeric" placeholder="0" value="3,000,000" aria-describedby="salary-help">
+            <span class="input__suffix">원</span>
+          </div>
+          <p class="field__help" id="salary-help">통상시급을 구할 때 기준이 되는 월 급여예요.</p>
+        </div>
+
+        <div class="field" id="field-total">
+          <label class="field__label" for="total">총 야근 시간</label>
+          <div class="input">
+            <input class="num" id="total" name="total" type="text" inputmode="decimal" placeholder="0" value="10" aria-describedby="total-help">
+            <span class="input__suffix">시간</span>
+          </div>
+          <div class="chips" role="group" aria-label="총 야근 시간 빠른 선택" data-target="total">
+            <button type="button" class="chip" data-value="5">5시간</button>
+            <button type="button" class="chip" data-value="10">10시간</button>
+            <button type="button" class="chip" data-value="20">20시간</button>
+            <button type="button" class="chip" data-value="30">30시간</button>
+          </div>
+          <p class="field__help" id="total-help">한 달 동안 연장해서 일한 시간을 모두 더해 주세요. 0.5시간 단위도 입력할 수 있어요.</p>
+        </div>
+
+        <div class="field" id="field-extended">
+          <label class="field__label" for="extended">연장근로 시간</label>
+          <div class="input">
+            <input class="num" id="extended" name="extended" type="text" inputmode="decimal" placeholder="0" value="4" aria-describedby="extended-help">
+            <span class="input__suffix">시간</span>
+          </div>
+          <div class="chips" role="group" aria-label="연장근로 시간 빠른 선택" data-target="extended">
+            <button type="button" class="chip" data-value="0">없어요</button>
+            <button type="button" class="chip" data-value="2">2시간</button>
+            <button type="button" class="chip" data-value="4">4시간</button>
+            <button type="button" class="chip" data-value="8">8시간</button>
+          </div>
+          <p class="field__help" id="extended-help">야근 시간 중 0.5배가 추가로 붙는 시간이에요.</p>
+        </div>
+      </form>
+    </section>
+
+    <section class="card card--plum calc__result" aria-labelledby="result-title" aria-live="polite">
+      <h2 class="result__label" id="result-title">예상 야근 수당</h2>
+      <p class="result__value num">
+        <span class="result__number" id="out-total">0</span><span class="result__unit">원</span>
+      </p>
+
+      <dl class="rows result__rows">
+        <div class="row">
+          <dt>통상시급<small>월급 ÷ 209시간</small></dt>
+          <dd class="num" id="out-hourly">0원</dd>
+        </div>
+        <div class="row">
+          <dt>야근 수당 (1.5배)<small id="sub-base">시급 × 1.5 × 0시간</small></dt>
+          <dd class="num" id="out-base">0원</dd>
+        </div>
+        <div class="row">
+          <dt>연장근로 추가 가산 (0.5배)<small id="sub-extra">시급 × 0.5 × 0시간</small></dt>
+          <dd class="num" id="out-extra">0원</dd>
+        </div>
+      </dl>
+
+      <button type="button" class="btn btn--on-plum btn--l btn--block" id="copy">결과 복사하기</button>
+    </section>
+  </div>
+
+  <section class="container method" aria-labelledby="method-title">
+    <h2 id="method-title">이렇게 계산해요</h2>
+    <p class="method__lead">월 소정근로시간 209시간(주 40시간 + 주휴 8시간)을 기준으로 시급을 구해요.</p>
+    <div class="method__grid">
+      <div class="formula">
+        <h3>통상시급</h3>
+        <p>월급 ÷ 209시간</p>
+        <small>모든 수당의 기준이 되는 1시간당 금액이에요.</small>
+      </div>
+      <div class="formula">
+        <h3>야근 수당</h3>
+        <p>시급 × 1.5 × 총 야근 시간</p>
+        <small>야근한 시간 전체에 1.5배를 적용해요.</small>
+      </div>
+      <div class="formula">
+        <h3>연장근로 추가 가산</h3>
+        <p>시급 × 0.5 × 연장근로 시간</p>
+        <small>연장근로 시간은 0.5배가 더해져 2배가 돼요.</small>
+      </div>
+    </div>
+    <p class="method__note">참고용 계산이에요. 실제 지급액은 회사 규정과 근로계약에 따라 달라질 수 있어요.</p>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <span>야근 수당 계산기</span>
+    <span>입력한 값은 이 기기에서만 계산돼요.</span>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+  // ── 계산 로직 (Python calculate_overtime 과 동일) ──
+  const STANDARD_HOURS = 209;
+
+  function calculateOvertime(netSalary, totalOvertimeHours, extendedWorkHours) {
+    const baseHourlyRate = netSalary / STANDARD_HOURS;
+    const rate15 = baseHourlyRate * 1.5;
+    const rate05 = baseHourlyRate * 0.5;
+
+    const baseOvertimePay = rate15 * totalOvertimeHours;
+    const extraExtendedPay = rate05 * extendedWorkHours;
+    const totalOvertimePay = baseOvertimePay + extraExtendedPay;
+
+    return { baseHourlyRate, baseOvertimePay, extraExtendedPay, totalOvertimePay };
+  }
+
+  // ── DOM ──
+  const $ = (id) => document.getElementById(id);
+  const el = {
+    salary: $('salary'), total: $('total'), extended: $('extended'),
+    outTotal: $('out-total'), outHourly: $('out-hourly'),
+    outBase: $('out-base'), outExtra: $('out-extra'),
+    subBase: $('sub-base'), subExtra: $('sub-extra'),
+    fieldExtended: $('field-extended'), extendedHelp: $('extended-help'),
+    toast: $('toast'),
+  };
+  const EXTENDED_HELP = el.extendedHelp.textContent;
+  const won = (n) => Math.round(n).toLocaleString('ko-KR');
+  const hoursText = (h) => `${Number(h.toFixed(2))}시간`;
+
+  const parseMoney = (s) => Number(s.replace(/[^\d]/g, '')) || 0;
+  const parseHours = (s) => {
+    const n = parseFloat(s.replace(/[^\d.]/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  // 입력 정리: 월급은 천 단위 콤마, 시간은 숫자 + 소수점 한 개
+  function formatSalaryInput() {
+    const digits = el.salary.value.replace(/[^\d]/g, '').replace(/^0+(?=\d)/, '');
+    el.salary.value = digits ? Number(digits).toLocaleString('ko-KR') : '';
+  }
+  function cleanHoursInput(input) {
+    let v = input.value.replace(/[^\d.]/g, '');
+    const i = v.indexOf('.');
+    if (i !== -1) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/\./g, '').slice(0, 2);
+    input.value = v;
+  }
+
+  let last = { total: 0 };
+
+  function render() {
+    const salary = parseMoney(el.salary.value);
+    const total = parseHours(el.total.value);
+    const extended = parseHours(el.extended.value);
+
+    const r = calculateOvertime(salary, total, extended);
+
+    // 표시값은 원 단위 반올림. 합계는 원본 합계를 반올림하고, 추가 가산은 차액으로 맞춰 1원 오차를 없애요.
+    const totalRounded = Math.round(r.totalOvertimePay);
+    const baseRounded = Math.round(r.baseOvertimePay);
+    const extraRounded = totalRounded - baseRounded;
+
+    el.outTotal.textContent = totalRounded.toLocaleString('ko-KR');
+    el.outHourly.textContent = `${won(r.baseHourlyRate)}원`;
+    el.outBase.textContent = `${baseRounded.toLocaleString('ko-KR')}원`;
+    el.outExtra.textContent = `${extraRounded.toLocaleString('ko-KR')}원`;
+    el.subBase.textContent = `시급 × 1.5 × ${hoursText(total)}`;
+    el.subExtra.textContent = `시급 × 0.5 × ${hoursText(extended)}`;
+
+    const overTotal = extended > total;
+    el.fieldExtended.classList.toggle('is-error', overTotal);
+    el.extendedHelp.textContent = overTotal ? '연장근로 시간이 총 야근 시간보다 커요. 다시 확인해 주세요.' : EXTENDED_HELP;
+
+    // 칩 선택 상태
+    document.querySelectorAll('.chips').forEach((group) => {
+      const value = parseHours(el[group.dataset.target].value);
+      const hasValue = el[group.dataset.target].value.trim() !== '';
+      group.querySelectorAll('.chip').forEach((chip) => {
+        chip.setAttribute('aria-pressed', String(hasValue && Number(chip.dataset.value) === value));
+      });
+    });
+
+    last = { salary, total, extended, totalRounded, hourly: r.baseHourlyRate, baseRounded, extraRounded };
+  }
+
+  // ── 이벤트 ──
+  el.salary.addEventListener('input', () => { formatSalaryInput(); render(); });
+  [el.total, el.extended].forEach((input) => {
+    input.addEventListener('input', () => { cleanHoursInput(input); render(); });
+  });
+  $('form').addEventListener('submit', (e) => e.preventDefault());
+
+  document.querySelectorAll('.chips').forEach((group) => {
+    group.addEventListener('click', (e) => {
+      const chip = e.target.closest('.chip');
+      if (!chip) return;
+      el[group.dataset.target].value = chip.dataset.value;
+      render();
+    });
+  });
+
+  let toastTimer;
+  function toast(message) {
+    el.toast.textContent = message;
+    el.toast.classList.add('is-visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.toast.classList.remove('is-visible'), 2200);
+  }
+
+  $('reset').addEventListener('click', () => {
+    el.salary.value = ''; el.total.value = ''; el.extended.value = '';
+    render();
+    el.salary.focus();
+    toast('입력한 내용을 지웠어요');
+  });
+
+  $('copy').addEventListener('click', async () => {
+    const text = [
+      `예상 야근 수당: ${won(last.totalRounded)}원`,
+      `- 월급 ${won(last.salary)}원 (통상시급 ${won(last.hourly)}원)`,
+      `- 야근 ${hoursText(last.total)} × 1.5배 = ${won(last.baseRounded)}원`,
+      `- 연장근로 ${hoursText(last.extended)} × 0.5배 = ${won(last.extraRounded)}원`,
+    ].join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('결과를 복사했어요');
+    } catch (err) {
+      toast('복사하지 못했어요. 브라우저 권한을 확인해 주세요');
+    }
+  });
+
+  render();
+</script>
+</body>
+</html>
