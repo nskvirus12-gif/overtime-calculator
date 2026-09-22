@@ -139,6 +139,13 @@
   .preview strong { color: var(--txt-primary); font-size: 18px; }
   .preview.is-error { color: var(--status-negative); }
   .preview__sub { display: block; margin-top: 4px; font-size: 13px; color: var(--txt-tertiary); }
+
+  /* ── 로그인 / 회원가입 ── */
+  .auth-card { max-width: 420px; margin: 0 auto 32px; }
+  .auth-tabs { display: flex; gap: 4px; padding: 4px; margin-bottom: 20px; border-radius: 10px; background: var(--bg-secondary); }
+  .auth-tab { flex: 1; height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--txt-secondary); font-size: 14px; font-weight: 500; }
+  .auth-tab[aria-selected="true"] { background: var(--bg-primary); color: var(--txt-primary); font-weight: 700; box-shadow: var(--shadow-card); }
+  .account-email { align-self: center; margin-right: 4px; font-size: 14px; color: var(--txt-secondary); }
 </style>
 </head>
 <body>
@@ -162,14 +169,57 @@
     <div class="page-head">
       <div>
         <h1 class="page-title">야근 현황관리</h1>
-        <p class="page-desc">날짜를 눌러 야근 시간을 기록하면 월별·연간으로 자동 누적돼요.</p>
+        <p class="page-desc">로그인하면 날짜를 눌러 야근 시간을 기록할 수 있고, 다른 기기에서도 같은 기록을 볼 수 있어요.</p>
       </div>
-      <div class="page-actions">
+      <div class="page-actions" id="page-actions" hidden>
+        <span class="account-email num" id="account-email"></span>
+        <button type="button" class="btn btn--tertiary btn--s" id="logout">로그아웃</button>
         <button type="button" class="btn btn--tertiary" id="import">엑셀에서 가져오기</button>
         <button type="button" class="btn btn--tertiary" id="export">엑셀로 내보내기</button>
       </div>
     </div>
-    <p class="notice">기록은 이 브라우저에만 저장돼요. 다른 기기에서는 보이지 않으니, 가끔 엑셀로 내보내 백업해 두세요.</p>
+
+    <!-- 로그인 전: 로그인 / 회원가입 -->
+    <section class="card auth-card" id="auth-gate" aria-labelledby="auth-title">
+      <div class="auth-tabs" role="tablist" aria-label="로그인 방식">
+        <button type="button" class="auth-tab" id="tab-login" role="tab" aria-selected="true">로그인</button>
+        <button type="button" class="auth-tab" id="tab-signup" role="tab" aria-selected="false">회원가입</button>
+      </div>
+      <h2 class="card__title" id="auth-title">계정으로 기록을 관리해요</h2>
+      <p class="field__help" style="margin-top:4px">로그인하면 야근 기록이 계정에 저장돼서, 다른 기기에서도 같은 기록을 볼 수 있어요.</p>
+
+      <form id="auth-form" style="margin-top:20px; display:flex; flex-direction:column; gap:16px;" novalidate>
+        <div class="field">
+          <label class="field__label" for="auth-email">이메일</label>
+          <div class="input"><input id="auth-email" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com" required></div>
+        </div>
+        <div class="field">
+          <label class="field__label" for="auth-password">비밀번호</label>
+          <div class="input"><input id="auth-password" type="password" autocomplete="current-password" placeholder="6자 이상" minlength="6" required></div>
+          <p class="field__help"><button type="button" class="btn btn--text btn--s" id="forgot-password" style="height:auto;padding:0;">비밀번호를 잊으셨나요?</button></p>
+        </div>
+        <p class="preview" id="auth-message" hidden></p>
+        <button type="submit" class="btn btn--primary btn--l btn--block" id="auth-submit">로그인</button>
+      </form>
+    </section>
+
+    <!-- 비밀번호 재설정 메일 링크로 돌아왔을 때만 보여요 -->
+    <section class="card auth-card" id="reset-gate" hidden aria-labelledby="reset-title">
+      <h2 class="card__title" id="reset-title">새 비밀번호 설정</h2>
+      <p class="field__help" style="margin-top:4px">새로 쓸 비밀번호를 입력해 주세요.</p>
+      <form id="reset-form" style="margin-top:20px; display:flex; flex-direction:column; gap:16px;" novalidate>
+        <div class="field">
+          <label class="field__label" for="reset-password">새 비밀번호</label>
+          <div class="input"><input id="reset-password" type="password" autocomplete="new-password" placeholder="6자 이상" minlength="6" required></div>
+        </div>
+        <p class="preview" id="reset-message" hidden></p>
+        <button type="submit" class="btn btn--primary btn--l btn--block">비밀번호 바꾸기</button>
+      </form>
+    </section>
+
+    <!-- 로그인 후: 실제 앱 -->
+    <div id="app-content" hidden>
+    <p class="notice">기록은 로그인한 계정에 저장돼서 다른 기기에서도 로그인하면 같은 기록을 볼 수 있어요. 그래도 가끔 엑셀로 내보내 백업해 두면 안전해요.</p>
     <input type="file" id="import-file" accept=".xlsx,.xls,.csv" hidden>
 
     <div class="layout">
@@ -258,10 +308,11 @@
         </section>
       </div>
     </div>
+    </div> <!-- /#app-content -->
   </div>
 
   <!-- 연간 누적 -->
-  <section class="year" aria-labelledby="year-title">
+  <section class="year" id="year-section" hidden aria-labelledby="year-title">
     <div class="container">
       <h2 id="year-title">2026년 누적</h2>
       <p class="year__lead">올해 야근 시간을 1.5배 구간과 2배 구간으로 나눠 보여드려요.</p>
@@ -304,7 +355,7 @@
 <footer class="footer">
   <div class="container">
     <span>야근 수당 계산기</span>
-    <span>기록은 이 브라우저에만 저장돼요.</span>
+    <span>기록은 로그인한 계정에 저장돼요.</span>
   </div>
 </footer>
 
@@ -350,6 +401,7 @@
 
 <div class="toast" id="toast" role="status"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
   // ── 계산 로직 (index.html / Python calculate_overtime 과 동일) ──
@@ -409,7 +461,8 @@
     return Math.max(0, s + mins - Math.max(s, NIGHT_START)); // 종료가 자정을 넘어도 이어서 계산해요
   }
 
-  // ── 저장소 ──
+  // ── 저장소 (Supabase) ──
+  // STORE_KEY는 이전 버전(브라우저 저장)의 기록을 계정으로 한 번 옮겨오는 용도로만 남겨뒀어요.
   const STORE_KEY = 'overtime.tracker.v1';
 
   // 30분 단위로 맞춰요. (가져온 파일에 1분 단위 기록이 있어도 가장 가까운 30분으로 바뀌어요)
@@ -418,6 +471,7 @@
     return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
   }
 
+  // {salary, entries} 형태의 값을 검증해요. 엑셀 가져오기, 이전 브라우저 기록 옮기기에 써요.
   function normalize(raw) {
     const out = { salary: 0, entries: {} };
     if (!raw || typeof raw !== 'object') return out;
@@ -432,14 +486,62 @@
     }
     return out;
   }
-  function load() {
-    try { return normalize(JSON.parse(localStorage.getItem(STORE_KEY))); }
-    catch (err) { return normalize(null); }
+
+  const SUPABASE_URL = 'https://bcbqkijiubcsnrjxsoyi.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjYnFraWppdWJjc25yanhzb3lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMzU2NDQsImV4cCI6MjEwNTYxMTY0NH0.mkjpZ8qL9yjxAHITGgC7c_WvheI_Pklqs32V_uAx5bE';
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  let session = null;
+  let state = { salary: 0, entries: {} }; // 로그인 후 Supabase에서 채워져요
+
+  // Supabase 테이블 → 화면에서 쓰는 state 형태로 바꿔요.
+  async function fetchRemoteState() {
+    const [{ data: rows, error: e1 }, { data: settingsRow, error: e2 }] = await Promise.all([
+      sb.from('entries').select('entry_date, start_time, end_time'),
+      sb.from('settings').select('salary').maybeSingle(),
+    ]);
+    if (e1 || e2) { toast('데이터를 불러오지 못했어요. 새로고침해 주세요'); return { salary: 0, entries: {} }; }
+    const entries = {};
+    for (const r of rows || []) entries[r.entry_date] = { start: r.start_time.slice(0, 5), end: r.end_time.slice(0, 5) };
+    return { salary: (settingsRow && settingsRow.salary) || 0, entries };
   }
-  let state = load();
-  function persist() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
-    catch (err) { toast('이 브라우저에 저장하지 못했어요. 엑셀로 내보내 백업해 두세요'); }
+
+  // 화면은 먼저 갱신(낙관적 업데이트)하고, Supabase에는 뒤이어 반영해요.
+  async function saveEntryRemote(key, entry) {
+    state.entries[key] = entry;
+    renderAll();
+    const { error } = await sb.from('entries').upsert(
+      { user_id: session.user.id, entry_date: key, start_time: entry.start, end_time: entry.end },
+      { onConflict: 'user_id,entry_date' },
+    );
+    if (error) toast('저장하지 못했어요. 다시 시도해 주세요');
+  }
+  async function deleteEntryRemote(key) {
+    delete state.entries[key];
+    renderAll();
+    const { error } = await sb.from('entries').delete().eq('entry_date', key);
+    if (error) toast('삭제하지 못했어요. 다시 시도해 주세요');
+  }
+  async function saveSalaryRemote(value) {
+    state.salary = value;
+    renderAll();
+    const { error } = await sb.from('settings').upsert({ user_id: session.user.id, salary: value });
+    if (error) toast('저장하지 못했어요. 다시 시도해 주세요');
+  }
+  // 엑셀 가져오기처럼 전체를 통째로 바꿀 때 써요. 기존 기록을 지우고 새로 넣어요.
+  async function replaceAllRemote(entries, salary) {
+    const uid = session.user.id;
+    const rows = Object.entries(entries).map(([entry_date, e]) => ({ user_id: uid, entry_date, start_time: e.start, end_time: e.end }));
+    const { error: delErr } = await sb.from('entries').delete().neq('entry_date', '0001-01-01');
+    if (delErr) { toast('가져오기에 실패했어요'); return false; }
+    if (rows.length) {
+      const { error: insErr } = await sb.from('entries').insert(rows);
+      if (insErr) { toast('가져오기에 실패했어요'); return false; }
+    }
+    const { error: salErr } = await sb.from('settings').upsert({ user_id: uid, salary: salary || 0 });
+    if (salErr) toast('월급을 저장하지 못했어요');
+    state = { salary: salary || 0, entries };
+    renderAll();
+    return true;
   }
 
   // ── 집계 ──
@@ -716,13 +818,10 @@
 
   // ── 월급 ──
   const salaryInput = $('salary');
-  salaryInput.value = state.salary ? state.salary.toLocaleString('ko-KR') : '';
   salaryInput.addEventListener('input', () => {
     const digits = salaryInput.value.replace(/[^\d]/g, '').replace(/^0+(?=\d)/, '');
     salaryInput.value = digits ? Number(digits).toLocaleString('ko-KR') : '';
-    state.salary = Number(digits) || 0;
-    persist();
-    renderAll();
+    saveSalaryRemote(Number(digits) || 0);
   });
 
   // ── 입력 모달 ──
@@ -775,15 +874,17 @@
 
   [startEl, endEl].forEach((el) => el.addEventListener('input', updatePreview));
 
-  $('save').addEventListener('click', () => {
+  $('save').addEventListener('click', async () => {
     if (!spanMinutes(startEl.value, endEl.value)) return;
-    state.entries[editingKey] = { start: startEl.value, end: endEl.value };
-    persist(); sheet.close(); renderAll();
+    const key = editingKey;
+    sheet.close();
+    await saveEntryRemote(key, { start: startEl.value, end: endEl.value });
     toast('저장했어요');
   });
-  $('delete').addEventListener('click', () => {
-    delete state.entries[editingKey];
-    persist(); sheet.close(); renderAll();
+  $('delete').addEventListener('click', async () => {
+    const key = editingKey;
+    sheet.close();
+    await deleteEntryRemote(key);
     toast('삭제했어요');
   });
   $('cancel').addEventListener('click', () => sheet.close());
@@ -893,10 +994,9 @@
 
       const skipped = rows.length - count;
       if (!confirm(`엑셀 파일의 기록 ${count}일을 불러올까요?${skipped > 0 ? `\n(읽지 못했거나 겹치는 ${skipped}줄은 제외돼요)` : ''}\n지금 저장된 기록은 모두 바뀌어요.`)) return;
-      state = next;
-      persist();
+      const ok = await replaceAllRemote(next.entries, next.salary);
+      if (!ok) return;
       salaryInput.value = state.salary ? state.salary.toLocaleString('ko-KR') : '';
-      renderAll();
       toast(`${count}일의 기록을 불러왔어요`);
     } catch (err) {
       toast('파일을 읽지 못했어요. 엑셀(.xlsx) 파일인지 확인해 주세요');
@@ -913,7 +1013,153 @@
     toastTimer = setTimeout(() => el.classList.remove('is-visible'), 2400);
   }
 
-  renderAll();
+  // ── 인증 ──
+  const authGate = $('auth-gate');
+  const resetGate = $('reset-gate');
+  const appContent = $('app-content');
+  const pageActions = $('page-actions');
+  const accountEmail = $('account-email');
+  const authForm = $('auth-form');
+  const authEmailEl = $('auth-email');
+  const authPasswordEl = $('auth-password');
+  const authMessage = $('auth-message');
+  const authSubmit = $('auth-submit');
+  let authMode = 'login'; // 'login' | 'signup'
+
+  function setAuthMode(mode) {
+    authMode = mode;
+    $('tab-login').setAttribute('aria-selected', String(mode === 'login'));
+    $('tab-signup').setAttribute('aria-selected', String(mode === 'signup'));
+    authSubmit.textContent = mode === 'login' ? '로그인' : '회원가입';
+    authPasswordEl.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+    authMessage.hidden = true;
+  }
+  $('tab-login').addEventListener('click', () => setAuthMode('login'));
+  $('tab-signup').addEventListener('click', () => setAuthMode('signup'));
+
+  function showAuthMessage(text, isError) {
+    authMessage.textContent = text;
+    authMessage.classList.toggle('is-error', !!isError);
+    authMessage.hidden = false;
+  }
+
+  // Supabase가 주는 영문 오류를 안내 문구로 바꿔요.
+  function authErrorMessage(err) {
+    const msg = (err && err.message) || '';
+    if (/already registered|already exists/i.test(msg)) return '이미 가입된 이메일이에요. 로그인해 주세요.';
+    if (/invalid login credentials/i.test(msg)) return '이메일 또는 비밀번호가 맞지 않아요.';
+    if (/email not confirmed/i.test(msg)) return '이메일 인증이 아직 안 됐어요. 메일함을 확인해 주세요.';
+    if (/password should be at least/i.test(msg)) return '비밀번호는 6자 이상이어야 해요.';
+    return '문제가 발생했어요. 잠시 후 다시 시도해 주세요.';
+  }
+
+  authForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = authEmailEl.value.trim();
+    const password = authPasswordEl.value;
+    if (!email || password.length < 6) return showAuthMessage('이메일과 6자 이상 비밀번호를 입력해 주세요', true);
+    authSubmit.disabled = true;
+    authMessage.hidden = true;
+    try {
+      if (authMode === 'login') {
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        // 성공하면 아래 onAuthStateChange(SIGNED_IN)가 화면 전환을 처리해요.
+      } else {
+        const { data, error } = await sb.auth.signUp({ email, password });
+        if (error) throw error;
+        if (!data.session) showAuthMessage('가입 확인 메일을 보냈어요. 메일함에서 링크를 눌러 인증해 주세요.', false);
+      }
+    } catch (err) {
+      showAuthMessage(authErrorMessage(err), true);
+    } finally {
+      authSubmit.disabled = false;
+    }
+  });
+
+  $('forgot-password').addEventListener('click', async () => {
+    const email = authEmailEl.value.trim();
+    if (!email) return showAuthMessage('이메일을 먼저 입력해 주세요', true);
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split('#')[0] });
+    showAuthMessage(error ? '메일을 보내지 못했어요' : '비밀번호 재설정 메일을 보냈어요. 메일함을 확인해 주세요.', !!error);
+  });
+
+  $('logout').addEventListener('click', () => sb.auth.signOut());
+
+  // ── 비밀번호 재설정 ──
+  const resetForm = $('reset-form');
+  const resetPasswordEl = $('reset-password');
+  const resetMessage = $('reset-message');
+  resetForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const password = resetPasswordEl.value;
+    if (password.length < 6) {
+      resetMessage.textContent = '비밀번호는 6자 이상이어야 해요.';
+      resetMessage.classList.add('is-error');
+      resetMessage.hidden = false;
+      return;
+    }
+    const { error } = await sb.auth.updateUser({ password });
+    if (error) {
+      resetMessage.textContent = '변경하지 못했어요. 다시 시도해 주세요.';
+      resetMessage.classList.add('is-error');
+      resetMessage.hidden = false;
+      return;
+    }
+    resetGate.hidden = true;
+    toast('비밀번호를 바꿨어요');
+  });
+
+  // 이 브라우저에 예전에 저장해 둔 기록이 있고 계정에는 아직 기록이 없으면, 한 번만 옮길지 물어봐요.
+  async function maybeMigrateLocalData() {
+    if (Object.keys(state.entries).length) return; // 계정에 이미 기록이 있으면 건너뛰어요
+    let local;
+    try { local = normalize(JSON.parse(localStorage.getItem(STORE_KEY))); }
+    catch (err) { return; }
+    const count = Object.keys(local.entries).length;
+    if (!count) return;
+    if (!confirm(`이 브라우저에 저장돼 있던 이전 기록 ${count}일을 계정으로 가져올까요?`)) return;
+    const ok = await replaceAllRemote(local.entries, local.salary || state.salary);
+    if (ok) { localStorage.removeItem(STORE_KEY); toast('이전 기록을 계정으로 옮겼어요'); }
+  }
+
+  async function enterApp(newSession) {
+    session = newSession;
+    authGate.hidden = true;
+    resetGate.hidden = true;
+    pageActions.hidden = false;
+    appContent.hidden = false;
+    $('year-section').hidden = false;
+    accountEmail.textContent = session.user.email;
+
+    state = await fetchRemoteState();
+    await maybeMigrateLocalData();
+    salaryInput.value = state.salary ? state.salary.toLocaleString('ko-KR') : '';
+    renderAll();
+  }
+
+  function leaveApp() {
+    session = null;
+    appContent.hidden = true;
+    $('year-section').hidden = true;
+    pageActions.hidden = true;
+    resetGate.hidden = true;
+    authGate.hidden = false;
+    authForm.reset();
+    setAuthMode('login');
+  }
+
+  sb.auth.onAuthStateChange((event, newSession) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      authGate.hidden = true;
+      resetGate.hidden = false;
+      return;
+    }
+    if (event === 'SIGNED_OUT') { leaveApp(); return; }
+    if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') { session = newSession; return; }
+    if (newSession) enterApp(newSession);
+    else if (event === 'INITIAL_SESSION') leaveApp();
+  });
 </script>
 </body>
 </html>
