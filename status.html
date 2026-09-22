@@ -174,6 +174,7 @@
       <div class="page-actions" id="page-actions" hidden>
         <span class="account-email num" id="account-email"></span>
         <button type="button" class="btn btn--tertiary btn--s" id="logout">로그아웃</button>
+        <button type="button" class="btn btn--text" id="template">엑셀 양식 다운로드</button>
         <button type="button" class="btn btn--tertiary" id="import">엑셀에서 가져오기</button>
         <button type="button" class="btn btn--tertiary" id="export">엑셀로 내보내기</button>
       </div>
@@ -899,27 +900,43 @@
   sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); });
 
   // ── 엑셀 백업 ──
-  // 파일: [야근기록] 날짜·시작·종료 (가져올 때 읽는 열) + 계산된 시간 열 / [월별 요약] / [설정] 월급
+  // 파일: 월별 시트(예: "2026-09") 날짜·시작·종료 (가져올 때 읽는 열) + 계산된 시간 열 / [월별 요약] / [설정] 월급
+  // '월별 요약'·'설정'·'안내' 시트만 빼고, 나머지 시트는 모두 기록으로 읽어요. 그래서 시트를 몇 개로 나누든 상관없어요.
   const XLSX_MISSING = '엑셀 기능을 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요';
   const RECORD_HEAD = ['날짜', '요일', '시작', '종료', '총 야근 시간(시간)', '야근 시간 1.5배(시간)', '연장근로 시간 2배(시간)'];
   const SUMMARY_HEAD = ['월', '야근 일수', '총 야근 시간(시간)', '야근 시간 1.5배(시간)', '연장근로 시간 2배(시간)', '예상 수당(원)'];
+  const RESERVED_SHEETS = ['월별 요약', '설정', '안내'];
+
+  function addSheetTo(wb, name, data, header, widths) {
+    const ws = XLSX.utils.json_to_sheet(data, { header });
+    ws['!cols'] = widths.map((wch) => ({ wch }));
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  }
 
   $('export').addEventListener('click', () => {
     if (typeof XLSX === 'undefined') return toast(XLSX_MISSING);
-    const hours = (min) => Number((min / 60).toFixed(2));
     const keys = Object.keys(state.entries).sort();
+    if (!keys.length) return toast('내보낼 기록이 없어요');
+    const hours = (min) => Number((min / 60).toFixed(2));
+    const wb = XLSX.utils.book_new();
 
-    const records = keys.map((k) => {
-      const e = state.entries[k];
-      const mins = spanMinutes(e.start, e.end);
-      const ext = extMinutes(k, e.start, e.end);
-      const [y, m, d] = k.split('-').map(Number);
-      return {
-        '날짜': k, '요일': WEEK[new Date(y, m - 1, d).getDay()], '시작': e.start, '종료': e.end,
-        '총 야근 시간(시간)': hours(mins), '야근 시간 1.5배(시간)': hours(mins - ext), '연장근로 시간 2배(시간)': hours(ext),
-      };
-    });
-    const summary = [...new Set(keys.map((k) => k.slice(0, 7)))].map((ym) => {
+    // 달마다 시트를 따로 만들어요.
+    const months = [...new Set(keys.map((k) => k.slice(0, 7)))];
+    for (const ym of months) {
+      const records = keys.filter((k) => k.startsWith(ym)).map((k) => {
+        const e = state.entries[k];
+        const mins = spanMinutes(e.start, e.end);
+        const ext = extMinutes(k, e.start, e.end);
+        const [y, m, d] = k.split('-').map(Number);
+        return {
+          '날짜': k, '요일': WEEK[new Date(y, m - 1, d).getDay()], '시작': e.start, '종료': e.end,
+          '총 야근 시간(시간)': hours(mins), '야근 시간 1.5배(시간)': hours(mins - ext), '연장근로 시간 2배(시간)': hours(ext),
+        };
+      });
+      addSheetTo(wb, ym, records, RECORD_HEAD, [12, 6, 8, 8, 18, 22, 24]);
+    }
+
+    const summary = months.map((ym) => {
       const [y, m] = ym.split('-').map(Number);
       const s = statsFor(y, m - 1);
       return {
@@ -927,18 +944,36 @@
         '야근 시간 1.5배(시간)': hours(s.minutes - s.ext), '연장근로 시간 2배(시간)': hours(s.ext), '예상 수당(원)': s.total,
       };
     });
-
-    const wb = XLSX.utils.book_new();
-    const addSheet = (name, data, header, widths) => {
-      const ws = XLSX.utils.json_to_sheet(data, { header });
-      ws['!cols'] = widths.map((wch) => ({ wch }));
-      XLSX.utils.book_append_sheet(wb, ws, name);
-    };
-    addSheet('야근기록', records, RECORD_HEAD, [12, 6, 8, 8, 18, 22, 24]);
-    addSheet('월별 요약', summary, SUMMARY_HEAD, [10, 10, 18, 22, 24, 14]);
-    addSheet('설정', [{ '항목': '월급', '값': state.salary }], ['항목', '값'], [10, 14]);
+    addSheetTo(wb, '월별 요약', summary, SUMMARY_HEAD, [10, 10, 18, 22, 24, 14]);
+    addSheetTo(wb, '설정', [{ '항목': '월급', '값': state.salary }], ['항목', '값'], [10, 14]);
     XLSX.writeFile(wb, `야근기록-${keyOf(now.getFullYear(), now.getMonth(), now.getDate())}.xlsx`);
     toast('엑셀 파일로 내보냈어요');
+  });
+
+  // 빈 양식: 안내 시트 + 이번 달 예시 시트. 달이 바뀌면 시트를 복사해서 이름만 바꿔 쓰면 돼요.
+  $('template').addEventListener('click', () => {
+    if (typeof XLSX === 'undefined') return toast(XLSX_MISSING);
+    const wb = XLSX.utils.book_new();
+    const guide = [
+      '이 파일로 야근 기록을 한 번에 올릴 수 있어요.',
+      '',
+      '1. 달마다 시트(아래 탭)를 하나씩 만들어요. 이 시트를 복사해서 시트 이름만 바꾸면 편해요.',
+      '2. 날짜는 2026-09-21 처럼, 시간은 18:00 처럼 24시간제로 적어요.',
+      '3. 하루에 한 줄만 적어요. 같은 날짜가 여러 줄이면 마지막 줄만 반영돼요.',
+      '4. 시간은 올릴 때 자동으로 가장 가까운 30분 단위로 맞춰져요.',
+      '5. 작성이 끝나면 "엑셀에서 가져오기"로 이 파일을 올려주세요.',
+    ].map((text) => ({ '안내': text }));
+    addSheetTo(wb, '안내', guide, ['안내'], [56]);
+
+    const sheetName = keyOf(now.getFullYear(), now.getMonth(), 1).slice(0, 7);
+    const example = [
+      { '날짜': keyOf(now.getFullYear(), now.getMonth(), 1), '시작': '18:00', '종료': '21:00' },
+      { '날짜': keyOf(now.getFullYear(), now.getMonth(), 2), '시작': '22:00', '종료': '01:00' },
+    ];
+    addSheetTo(wb, sheetName, example, ['날짜', '시작', '종료'], [12, 8, 8]);
+
+    XLSX.writeFile(wb, '야근기록-양식.xlsx');
+    toast('양식 파일을 내려받았어요');
   });
 
   // 엑셀 셀 값 → 'YYYY-MM-DD' / 'HH:MM'. 글자로 적은 값과 엑셀이 날짜·시간으로 바꾼 값을 모두 읽어요.
@@ -978,14 +1013,18 @@
     if (typeof XLSX === 'undefined') return toast(XLSX_MISSING);
     try {
       const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-      const recordSheet = wb.Sheets['야근기록'] || wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(recordSheet, { defval: '' });
-
+      // '월별 요약'·'설정'·'안내' 시트만 빼고, 나머지 시트는 모두 기록으로 읽어요. 달마다 시트가 나뉘어 있어도 다 합쳐져요.
       const entries = {};
-      for (const r of rows) {
-        const key = cellToDateKey(r['날짜']), start = cellToTime(r['시작']), end = cellToTime(r['종료']);
-        if (!key || !start || !end) continue;
-        entries[key] = { start, end }; // 같은 날짜가 여러 줄이면 마지막 줄을 써요
+      let rowCount = 0;
+      for (const sheetName of wb.SheetNames) {
+        if (RESERVED_SHEETS.includes(sheetName)) continue;
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
+        rowCount += rows.length;
+        for (const r of rows) {
+          const key = cellToDateKey(r['날짜']), start = cellToTime(r['시작']), end = cellToTime(r['종료']);
+          if (!key || !start || !end) continue;
+          entries[key] = { start, end }; // 같은 날짜가 여러 줄이면 마지막 줄을 써요
+        }
       }
 
       let salary = state.salary; // 파일에 월급이 없으면 지금 값을 유지해요
@@ -999,7 +1038,7 @@
       const count = Object.keys(next.entries).length;
       if (!count) return toast('가져올 기록을 찾지 못했어요. 날짜·시작·종료 열이 있는지 확인해 주세요');
 
-      const skipped = rows.length - count;
+      const skipped = rowCount - count;
       if (!confirm(`엑셀 파일의 기록 ${count}일을 불러올까요?${skipped > 0 ? `\n(읽지 못했거나 겹치는 ${skipped}줄은 제외돼요)` : ''}\n지금 저장된 기록은 모두 바뀌어요.`)) return;
       const ok = await replaceAllRemote(next.entries, next.salary);
       if (!ok) return;
