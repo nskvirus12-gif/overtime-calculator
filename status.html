@@ -217,6 +217,13 @@
       </form>
     </section>
 
+    <!-- 로그인은 했지만 아직 승인되지 않았을 때 -->
+    <section class="card auth-card" id="pending-gate" hidden aria-labelledby="pending-title">
+      <h2 class="card__title" id="pending-title">승인을 기다리고 있어요</h2>
+      <p class="field__help" style="margin-top:8px">관리자가 계정을 승인하면 이용할 수 있어요. 승인되면 이 페이지를 새로고침해 주세요.</p>
+      <button type="button" class="btn btn--tertiary" id="pending-logout" style="margin-top:20px">로그아웃</button>
+    </section>
+
     <!-- 로그인 후: 실제 앱 -->
     <div id="app-content" hidden>
     <p class="notice">기록은 로그인한 계정에 저장돼서 다른 기기에서도 로그인하면 같은 기록을 볼 수 있어요. 그래도 가끔 엑셀로 내보내 백업해 두면 안전해요.</p>
@@ -1016,6 +1023,7 @@
   // ── 인증 ──
   const authGate = $('auth-gate');
   const resetGate = $('reset-gate');
+  const pendingGate = $('pending-gate');
   const appContent = $('app-content');
   const pageActions = $('page-actions');
   const accountEmail = $('account-email');
@@ -1068,7 +1076,7 @@
       } else {
         const { data, error } = await sb.auth.signUp({ email, password });
         if (error) throw error;
-        if (!data.session) showAuthMessage('가입 확인 메일을 보냈어요. 메일함에서 링크를 눌러 인증해 주세요.', false);
+          if (!data.session) showAuthMessage('가입 확인 메일을 보냈어요. 메일함에서 링크를 눌러 인증해 주세요. 인증 후에도 관리자 승인이 필요해요.', false);
       }
     } catch (err) {
       showAuthMessage(authErrorMessage(err), true);
@@ -1085,6 +1093,7 @@
   });
 
   $('logout').addEventListener('click', () => sb.auth.signOut());
+  $('pending-logout').addEventListener('click', () => sb.auth.signOut());
 
   // ── 비밀번호 재설정 ──
   const resetForm = $('reset-form');
@@ -1127,10 +1136,22 @@
     session = newSession;
     authGate.hidden = true;
     resetGate.hidden = true;
+    pendingGate.hidden = true;
+    accountEmail.textContent = session.user.email;
+
+    // 관리자가 승인한 계정인지 확인해요. 승인 전에는 entries/settings 조회 자체가 막혀 있어요.
+    const { data: profile, error } = await sb.from('profiles').select('approved').eq('user_id', session.user.id).maybeSingle();
+    if (error || !profile || !profile.approved) {
+      pendingGate.hidden = false;
+      pageActions.hidden = true;
+      appContent.hidden = true;
+      $('year-section').hidden = true;
+      return;
+    }
+
     pageActions.hidden = false;
     appContent.hidden = false;
     $('year-section').hidden = false;
-    accountEmail.textContent = session.user.email;
 
     state = await fetchRemoteState();
     await maybeMigrateLocalData();
@@ -1144,6 +1165,7 @@
     $('year-section').hidden = true;
     pageActions.hidden = true;
     resetGate.hidden = true;
+    pendingGate.hidden = true;
     authGate.hidden = false;
     authForm.reset();
     setAuthMode('login');
