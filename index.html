@@ -1088,8 +1088,9 @@
   sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); });
 
   // ── 엑셀 백업 ──
-  // 파일: 연도별 시트(예: "2026") 날짜·시작·종료 (가져올 때 읽는 열) + 계산된 시간 열 / [월별 요약] / [설정] 월급
-  // 시트를 연도로 나눠서, 몇 년을 쓰든 탭 개수가 크게 늘지 않아요.
+  // 파일: 올해는 달마다 시트(예: "2026-09"), 지난 연도는 그 해 전체를 시트 하나로("2026") 묶어요.
+  //       해가 바뀌면, 그동안 달로 나뉘어 있던 지난해 시트들이 다음 내보내기부터 자동으로 하나로 합쳐져요.
+  //       + [월별 요약] / [설정] 월급
   // '월별 요약'·'설정'·'안내' 시트만 빼고, 나머지 시트는 모두 기록으로 읽어요. 그래서 시트를 몇 개로 나누든 상관없어요.
   const XLSX_MISSING = '엑셀 기능을 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요';
   const RECORD_HEAD = ['날짜', '월', '요일', '시작', '종료', '총 야근 시간(시간)', '야근 시간 1.5배(시간)', '연장근로 시간 2배(시간)'];
@@ -1109,20 +1110,31 @@
     const hours = (min) => Number((min / 60).toFixed(2));
     const wb = XLSX.utils.book_new();
 
-    // 연도마다 시트를 하나씩 만들어요. 한 시트 안에서는 날짜순으로 달이 이어져요.
+    const buildRow = (k) => {
+      const e = state.entries[k];
+      const mins = spanMinutes(e.start, e.end);
+      const ext = extMinutes(k, e.start, e.end);
+      const [yy, m, d] = k.split('-').map(Number);
+      return {
+        '날짜': k, '월': m, '요일': WEEK[new Date(yy, m - 1, d).getDay()], '시작': e.start, '종료': e.end,
+        '총 야근 시간(시간)': hours(mins), '야근 시간 1.5배(시간)': hours(mins - ext), '연장근로 시간 2배(시간)': hours(ext),
+      };
+    };
+
+    // 올해(진행 중인 해)는 달마다 시트를 따로 만들고, 지난 연도는 그 해 전체를 시트 하나로 묶어요.
+    // 이렇게 하면 최근 기록은 달 단위로 자세히 보이고, 지난 연도들 때문에 탭이 계속 늘어나지는 않아요.
+    const currentYear = String(now.getFullYear());
     const years = [...new Set(keys.map((k) => k.slice(0, 4)))];
     for (const y of years) {
-      const records = keys.filter((k) => k.startsWith(y)).map((k) => {
-        const e = state.entries[k];
-        const mins = spanMinutes(e.start, e.end);
-        const ext = extMinutes(k, e.start, e.end);
-        const [yy, m, d] = k.split('-').map(Number);
-        return {
-          '날짜': k, '월': m, '요일': WEEK[new Date(yy, m - 1, d).getDay()], '시작': e.start, '종료': e.end,
-          '총 야근 시간(시간)': hours(mins), '야근 시간 1.5배(시간)': hours(mins - ext), '연장근로 시간 2배(시간)': hours(ext),
-        };
-      });
-      addSheetTo(wb, y, records, RECORD_HEAD, [12, 6, 6, 8, 8, 18, 22, 24]);
+      const yearKeys = keys.filter((k) => k.startsWith(y));
+      if (y === currentYear) {
+        const yearMonths = [...new Set(yearKeys.map((k) => k.slice(0, 7)))];
+        for (const ym of yearMonths) {
+          addSheetTo(wb, ym, yearKeys.filter((k) => k.startsWith(ym)).map(buildRow), RECORD_HEAD, [12, 6, 6, 8, 8, 18, 22, 24]);
+        }
+      } else {
+        addSheetTo(wb, y, yearKeys.map(buildRow), RECORD_HEAD, [12, 6, 6, 8, 8, 18, 22, 24]);
+      }
     }
 
     const months = [...new Set(keys.map((k) => k.slice(0, 7)))];
