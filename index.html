@@ -930,13 +930,19 @@
 
     // 지금 보고 있는 달이 그래프 가운데쯤 오게 맞춰요. 이 그래프 안에서만 스크롤하고,
     // 페이지 전체(세로 스크롤)는 건드리지 않아요 — scrollIntoView 대신 scrollLeft를 직접 계산해요.
+    // 다음 프레임까지 기다려 레이아웃이 확정된 뒤 옮기고, scroll-snap이 되돌리지 못하게 잠깐 꺼둬요.
     const activeCol = chartEl.querySelector('[aria-current="true"]');
     if (activeCol) {
-      const chartRect = chartEl.getBoundingClientRect();
-      const colRect = activeCol.getBoundingClientRect();
-      const colOffset = colRect.left - chartRect.left + chartEl.scrollLeft;
-      const target = colOffset - (chartEl.clientWidth - activeCol.offsetWidth) / 2;
-      chartEl.scrollLeft = Math.max(0, target);
+      requestAnimationFrame(() => {
+        const chartRect = chartEl.getBoundingClientRect();
+        const colRect = activeCol.getBoundingClientRect();
+        const colOffset = colRect.left - chartRect.left + chartEl.scrollLeft;
+        const target = Math.max(0, colOffset - (chartEl.clientWidth - activeCol.offsetWidth) / 2);
+        const prevSnap = chartEl.style.scrollSnapType;
+        chartEl.style.scrollSnapType = 'none';
+        chartEl.scrollLeft = target;
+        requestAnimationFrame(() => { chartEl.style.scrollSnapType = prevSnap; });
+      });
     }
   }
 
