@@ -65,11 +65,14 @@
   }
   .day:hover { background: var(--bg-secondary); border-color: var(--border-secondary); }
   .day--blank { border-color: transparent; background: transparent; pointer-events: none; }
-  .day__num { display: grid; place-items: center; min-width: 28px; height: 28px; border-radius: 999px; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .day__num { position: relative; display: grid; place-items: center; min-width: 28px; height: 28px; border-radius: 999px; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
   .day--sun .day__num { color: var(--status-negative); }
   .day--today .day__num { background: var(--primary); color: #fff; font-weight: 700; }
   .day--has { background: var(--bg-purple-primary); border-color: transparent; }
   .day--has:hover { background: var(--bg-purple-secondary); border-color: transparent; }
+  /* 공휴일 이름 라벨 + (모바일용) 작은 점 표시 */
+  .day__holiday { max-width: 100%; font-size: 11px; font-weight: 500; color: var(--status-negative); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .day--holiday .day__num::after { content: ""; position: absolute; right: -2px; bottom: -1px; width: 6px; height: 6px; border-radius: 999px; background: var(--status-negative); border: 1.5px solid var(--bg-primary); }
   .day__chip { font-size: 13px; font-weight: 700; color: var(--txt-purple-secondary); font-variant-numeric: tabular-nums; }
   .day__short { display: none; }
   .day__range { font-size: 12px; color: var(--txt-tertiary); font-variant-numeric: tabular-nums; }
@@ -81,7 +84,7 @@
     .cal__title { min-width: 0; font-size: 20px; }
     .cal__weekdays, .cal__grid { gap: 2px; }
     .day { min-height: 60px; padding: 6px 2px; align-items: center; gap: 2px; border-radius: 10px; }
-    .day__long, .day__range, .day__ext, .day::after { display: none !important; }
+    .day__long, .day__range, .day__ext, .day__holiday, .day::after { display: none !important; }
     .day__short { display: inline; }
     .day__chip { font-size: 11px; }
   }
@@ -351,8 +354,8 @@
             <strong>연장근로는 자동으로 계산돼요</strong>
             <ul>
               <li>평일(월~금): 22시 이후 근무한 시간</li>
-              <li>주말(토·일): 8시간을 넘겨 근무한 시간</li>
-              <li>공휴일은 구분하지 않고 평일로 계산해요.</li>
+              <li>주말·공휴일: 8시간을 넘겨 근무한 시간</li>
+              <li>공휴일은 달력에 빨간 날로 표시돼요. 대체공휴일도 포함돼요.</li>
             </ul>
           </div>
         </section>
@@ -493,9 +496,86 @@
   }
   const fmtHoursShort = (min) => `${Number((min / 60).toFixed(1))}h`;
 
+  // ── 대한민국 공휴일 (2025~2027, 대체공휴일 포함) ──
+  // 매년 정부가 관공서의 공휴일에 관한 규정을 따로 고시하기 때문에, 해가 바뀌면 이 목록도 새로 추가해야 해요.
+  // 2026-04-28 국무회의 의결로 노동절(5/1)·제헌절(7/17)이 관공서 공휴일로 새로 지정됐어요.
+  // 근로자의 날(5/1)은 이 지정 이전에도 '근로자의 날 제정에 관한 법률'로 이미 유급휴일이었기 때문에,
+  // 2025년에도 주말과 같은 방식(8시간 초과분만 연장근로)으로 계산하도록 넣었어요.
+  const HOLIDAYS = {
+    // 2025년
+    '2025-01-01': '신정',
+    '2025-01-27': '임시공휴일',
+    '2025-01-28': '설날 연휴',
+    '2025-01-29': '설날',
+    '2025-01-30': '설날 연휴',
+    '2025-03-01': '삼일절',
+    '2025-03-03': '대체공휴일(삼일절)',
+    '2025-05-01': '근로자의 날',
+    '2025-05-05': '어린이날·부처님오신날',
+    '2025-05-06': '대체공휴일',
+    '2025-06-03': '임시공휴일(대통령선거)',
+    '2025-06-06': '현충일',
+    '2025-08-15': '광복절',
+    '2025-10-03': '개천절',
+    '2025-10-05': '추석 연휴',
+    '2025-10-06': '추석',
+    '2025-10-07': '추석 연휴',
+    '2025-10-08': '대체공휴일(추석)',
+    '2025-10-09': '한글날',
+    '2025-12-25': '크리스마스',
+    // 2026년
+    '2026-01-01': '신정',
+    '2026-02-16': '설날 연휴',
+    '2026-02-17': '설날',
+    '2026-02-18': '설날 연휴',
+    '2026-03-01': '삼일절',
+    '2026-03-02': '대체공휴일(삼일절)',
+    '2026-05-01': '노동절',
+    '2026-05-05': '어린이날',
+    '2026-05-24': '부처님오신날',
+    '2026-05-25': '대체공휴일(부처님오신날)',
+    '2026-06-03': '임시공휴일(지방선거)',
+    '2026-06-06': '현충일',
+    '2026-07-17': '제헌절',
+    '2026-08-15': '광복절',
+    '2026-08-17': '대체공휴일(광복절)',
+    '2026-09-24': '추석 연휴',
+    '2026-09-25': '추석',
+    '2026-09-26': '추석 연휴',
+    '2026-10-03': '개천절',
+    '2026-10-05': '대체공휴일(개천절)',
+    '2026-10-09': '한글날',
+    '2026-12-25': '크리스마스',
+    // 2027년
+    '2027-01-01': '신정',
+    '2027-02-06': '설날 연휴',
+    '2027-02-07': '설날',
+    '2027-02-08': '설날 연휴',
+    '2027-02-09': '대체공휴일(설날)',
+    '2027-03-01': '삼일절',
+    '2027-05-01': '노동절',
+    '2027-05-05': '어린이날',
+    '2027-05-13': '부처님오신날',
+    '2027-06-06': '현충일',
+    '2027-07-17': '제헌절',
+    '2027-08-15': '광복절',
+    '2027-08-16': '대체공휴일(광복절)',
+    '2027-09-14': '추석 연휴',
+    '2027-09-15': '추석',
+    '2027-09-16': '추석 연휴',
+    '2027-10-03': '개천절',
+    '2027-10-04': '대체공휴일(개천절)',
+    '2027-10-09': '한글날',
+    '2027-10-11': '대체공휴일(한글날)',
+    '2027-12-25': '크리스마스',
+    '2027-12-27': '대체공휴일(크리스마스)',
+  };
+  const holidayName = (key) => HOLIDAYS[key] || '';
+  const isHolidayKey = (key) => !!HOLIDAYS[key];
+
   // 연장근로 자동 계산 (분)
   //  - 평일(월~금): 22시 이후 근무한 시간
-  //  - 주말(토·일): 8시간을 넘겨 근무한 시간
+  //  - 주말·공휴일: 8시간을 넘겨 근무한 시간
   const NIGHT_START = 22 * 60;
   const WEEKEND_BASE = 8 * 60;
   const isWeekendKey = (key) => {
@@ -503,10 +583,11 @@
     const dow = new Date(y, m - 1, d).getDay();
     return dow === 0 || dow === 6;
   };
+  const isRestDayKey = (key) => isWeekendKey(key) || isHolidayKey(key);
   function extMinutes(key, start, end) {
     const mins = spanMinutes(start, end);
     if (!mins) return 0;
-    if (isWeekendKey(key)) return Math.max(0, mins - WEEKEND_BASE);
+    if (isRestDayKey(key)) return Math.max(0, mins - WEEKEND_BASE);
     const s = toMin(start);
     return Math.max(0, s + mins - Math.max(s, NIGHT_START)); // 종료가 자정을 넘어도 이어서 계산해요
   }
@@ -682,15 +763,21 @@
     for (let d = 1; d <= days; d++) {
       const key = keyOf(view.y, view.m, d);
       const entry = state.entries[key];
+      const holiday = holidayName(key);
       const dow = (first + d - 1) % 7;
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.dataset.key = key;
-      btn.className = 'day' + (dow === 0 ? ' day--sun' : '') + (key === todayKey ? ' day--today' : '') + (entry ? ' day--has' : '');
+      btn.className = 'day'
+        + (dow === 0 || holiday ? ' day--sun' : '')
+        + (holiday ? ' day--holiday' : '')
+        + (key === todayKey ? ' day--today' : '')
+        + (entry ? ' day--has' : '');
       const mins = entry ? spanMinutes(entry.start, entry.end) : 0;
       const extMin = entry ? extMinutes(key, entry.start, entry.end) : 0;
-      btn.setAttribute('aria-label', `${view.m + 1}월 ${d}일 ${WEEK[dow]}요일${entry ? `, 야근 ${fmtDur(mins)}` : ', 기록 없음'}`);
+      btn.setAttribute('aria-label', `${view.m + 1}월 ${d}일 ${WEEK[dow]}요일${holiday ? `, ${holiday}` : ''}${entry ? `, 야근 ${fmtDur(mins)}` : ', 기록 없음'}`);
       btn.appendChild(span('day__num', d));
+      if (holiday) btn.appendChild(span('day__holiday', holiday));
       if (entry) {
         const chip = span('day__chip', '');
         chip.append(span('day__long', fmtDur(mins)), span('day__short', fmtHoursShort(mins)));
@@ -904,7 +991,8 @@
     editingKey = key;
     const entry = state.entries[key];
     const [y, m, d] = key.split('-').map(Number);
-    $('sheet-title').textContent = `${m}월 ${d}일 (${WEEK[new Date(y, m - 1, d).getDay()]})`;
+    const holiday = holidayName(key);
+    $('sheet-title').textContent = `${m}월 ${d}일 (${WEEK[new Date(y, m - 1, d).getDay()]})${holiday ? ` · ${holiday}` : ''}`;
     startEl.value = entry ? entry.start : '18:00';
     endEl.value = entry ? entry.end : '21:00';
     $('delete').hidden = !entry;
@@ -930,9 +1018,11 @@
     p.append('야근 ', strong);
     if (crossesMidnight(startEl.value, endEl.value)) p.append(' · 종료는 다음 날이에요');
 
+    const holiday = holidayName(editingKey);
+    const restReason = holiday ? `공휴일(${holiday})은 8시간을 넘긴 시간` : '주말은 8시간을 넘긴 시간';
     const sub = document.createElement('span');
     sub.className = 'preview__sub';
-    sub.textContent = `연장근로 ${fmtDur(extMin)} (자동) · ${isWeekendKey(editingKey) ? '주말은 8시간을 넘긴 시간' : '평일은 22시 이후 근무 시간'}`;
+    sub.textContent = `연장근로 ${fmtDur(extMin)} (자동) · ${isRestDayKey(editingKey) ? restReason : '평일은 22시 이후 근무 시간'}`;
     p.appendChild(sub);
   }
 
