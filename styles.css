@@ -214,6 +214,9 @@ a { color: inherit; }
 .input input::placeholder { color: var(--txt-disabled); font-weight: 400; }
 .input__suffix { flex: none; font-size: 16px; color: var(--txt-secondary); }
 .input__chevron { flex: none; display: grid; color: var(--txt-tertiary); pointer-events: none; }
+.input__eye { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin-right: -6px; border: 0; border-radius: 999px; background: transparent; color: var(--txt-tertiary); transition: background-color .12s ease, color .12s ease; }
+.input__eye:hover { background: var(--bg-tertiary); color: var(--txt-secondary); }
+.input__eye[aria-pressed="true"] { color: var(--txt-purple-secondary); }
 
 /* ── chip ── */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
