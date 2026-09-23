@@ -925,7 +925,19 @@
       col.append(val, bar, name);
       frag.appendChild(col);
     });
-    $('chart').replaceChildren(frag);
+    const chartEl = $('chart');
+    chartEl.replaceChildren(frag);
+
+    // 지금 보고 있는 달이 그래프 가운데쯤 오게 맞춰요. 이 그래프 안에서만 스크롤하고,
+    // 페이지 전체(세로 스크롤)는 건드리지 않아요 — scrollIntoView 대신 scrollLeft를 직접 계산해요.
+    const activeCol = chartEl.querySelector('[aria-current="true"]');
+    if (activeCol) {
+      const chartRect = chartEl.getBoundingClientRect();
+      const colRect = activeCol.getBoundingClientRect();
+      const colOffset = colRect.left - chartRect.left + chartEl.scrollLeft;
+      const target = colOffset - (chartEl.clientWidth - activeCol.offsetWidth) / 2;
+      chartEl.scrollLeft = Math.max(0, target);
+    }
   }
 
   function renderAll() {
