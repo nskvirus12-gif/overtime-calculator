@@ -150,10 +150,14 @@ a { color: inherit; }
 .gnb__nav a[aria-current="page"] { opacity: 1; font-weight: 700; }
 .gnb__nav a[aria-current="page"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--txt-primary); }
 @media (max-width: 767px) {
-  .gnb__inner { gap: 24px; height: 56px; }
-  .brand { font-size: 17px; }
-  .gnb__nav { gap: 20px; }
-  .gnb__nav a { font-size: 14px; }
+  .gnb__inner { gap: 10px; height: 52px; }
+  .brand { font-size: 15px; gap: 8px; }
+  .brand__mark { width: 26px; height: 26px; }
+  /* 앱의 탭바처럼 알약형 세그먼트로 바꿔요 */
+  .gnb__nav { margin-left: auto; align-self: center; gap: 2px; height: 34px; padding: 3px; border-radius: 999px; background: var(--bg-secondary); }
+  .gnb__nav a { padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 600; opacity: 1; color: var(--txt-tertiary); }
+  .gnb__nav a[aria-current="page"] { background: var(--bg-primary); color: var(--txt-primary); box-shadow: 0 1px 4px rgb(0 0 0 / .12); }
+  .gnb__nav a[aria-current="page"]::after { display: none; }
 }
 
 /* ── button ── */
