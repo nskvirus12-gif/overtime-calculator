@@ -925,12 +925,6 @@
       frag.appendChild(col);
     });
     $('chart').replaceChildren(frag);
-
-    // 모바일에서는 그래프가 가로로 넘어가니, 지금 보고 있는 달이 바로 보이게 스크롤해줘요.
-    if (window.matchMedia('(max-width: 767px)').matches) {
-      const activeCol = $('chart').querySelector('[aria-current="true"]');
-      if (activeCol) activeCol.scrollIntoView({ block: 'nearest', inline: 'center' });
-    }
   }
 
   function renderAll() {
