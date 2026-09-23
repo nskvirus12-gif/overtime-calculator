@@ -930,20 +930,24 @@
 
     // 지금 보고 있는 달이 그래프 가운데쯤 오게 맞춰요. 이 그래프 안에서만 스크롤하고,
     // 페이지 전체(세로 스크롤)는 건드리지 않아요 — scrollIntoView 대신 scrollLeft를 직접 계산해요.
-    // 다음 프레임까지 기다려 레이아웃이 확정된 뒤 옮기고, scroll-snap이 되돌리지 못하게 잠깐 꺼둬요.
-    const activeCol = chartEl.querySelector('[aria-current="true"]');
-    if (activeCol) {
-      requestAnimationFrame(() => {
-        const chartRect = chartEl.getBoundingClientRect();
-        const colRect = activeCol.getBoundingClientRect();
-        const colOffset = colRect.left - chartRect.left + chartEl.scrollLeft;
-        const target = Math.max(0, colOffset - (chartEl.clientWidth - activeCol.offsetWidth) / 2);
-        const prevSnap = chartEl.style.scrollSnapType;
-        chartEl.style.scrollSnapType = 'none';
-        chartEl.scrollLeft = target;
-        requestAnimationFrame(() => { chartEl.style.scrollSnapType = prevSnap; });
-      });
-    }
+    // 로그인 직후처럼 renderYear가 연달아 여러 번 불릴 수 있어서, 실행되는 그 순간에
+    // 다시 조회해요 (미리 잡아둔 버튼을 쓰면, 그 사이 화면이 새로 그려져 엉뚱한 값이 나올 수 있어요).
+    centerYearChartOnCurrentMonth(chartEl);
+  }
+
+  function centerYearChartOnCurrentMonth(chartEl) {
+    requestAnimationFrame(() => {
+      const activeCol = chartEl.querySelector('[aria-current="true"]');
+      if (!activeCol) return;
+      const chartRect = chartEl.getBoundingClientRect();
+      const colRect = activeCol.getBoundingClientRect();
+      const colOffset = colRect.left - chartRect.left + chartEl.scrollLeft;
+      const target = Math.max(0, colOffset - (chartEl.clientWidth - activeCol.offsetWidth) / 2);
+      const prevSnap = chartEl.style.scrollSnapType;
+      chartEl.style.scrollSnapType = 'none';
+      chartEl.scrollLeft = target;
+      requestAnimationFrame(() => { chartEl.style.scrollSnapType = prevSnap; });
+    });
   }
 
   function renderAll() {
