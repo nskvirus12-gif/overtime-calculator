@@ -38,6 +38,8 @@
     .layout { display: flex; flex-direction: column; }
     .col-main, .col-side { display: contents; }
     .summary { order: 1; } .cal-card { order: 2; } .daily { order: 3; } .salary { order: 4; }
+    /* 일부 모바일 브라우저는 display:contents 밑에서 flex stretch를 안 해줘서 카드가 화면 끝까지 안 늘어나요. 폭을 직접 지정해서 막아요. */
+    .col-main > *, .col-side > * { width: 100%; }
   }
 
   /* ── 요약 (플럼 카드) ── */
