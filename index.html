@@ -183,6 +183,16 @@
 
   /* ── 로그인 / 회원가입 ── */
   .auth-card { max-width: 420px; margin: 0 auto 32px; }
+  /* 로그인 전 화면: 왼쪽 소개 · 오른쪽 로그인 폼 */
+  body.is-logged-out .page-head { display: none; }
+  .login-hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 420px); gap: 48px; align-items: center; min-height: calc(100dvh - 180px); padding-block: 48px; }
+  .login-hero .auth-card { width: 100%; margin: 0; }
+  .login-hero__title { margin-top: 18px; font-family: var(--font-display); font-weight: 800; font-size: clamp(40px, 6vw, 72px); line-height: 1.06; letter-spacing: -0.04em; }
+  .login-hero__title em { font-style: normal; color: var(--txt-purple-primary); }
+  .login-hero__note { margin-top: 16px; max-width: 460px; font-size: 17px; line-height: 1.6; color: var(--txt-secondary); }
+  .login-hero__actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+  @media (max-width: 1023px) { .login-hero { grid-template-columns: minmax(0, 1fr); gap: 28px; min-height: 0; padding-block: 24px 8px; } }
+  .demo-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 24px; padding: 14px 20px; border-radius: 12px; background: var(--bg-purple-secondary); color: var(--txt-purple-secondary); font-size: 14px; font-weight: 700; }
   .auth-tabs { display: flex; gap: 4px; padding: 4px; margin-bottom: 20px; border-radius: 10px; background: var(--bg-secondary); }
   .auth-tab { flex: 1; height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--txt-secondary); font-size: 14px; font-weight: 500; }
   .auth-tab[aria-selected="true"] { background: var(--bg-primary); color: var(--txt-primary); font-weight: 700; box-shadow: var(--shadow-card); }
@@ -226,7 +236,17 @@
     </div>
 
     <!-- 로그인 전: 로그인 / 회원가입 -->
-    <section class="card auth-card" id="auth-gate" aria-labelledby="auth-title">
+    <section class="login-hero" id="auth-gate" aria-labelledby="auth-hero-title">
+      <div>
+        <span class="pill">야근 수당 계산기</span>
+        <h1 class="login-hero__title" id="auth-hero-title">로그인하고<br><em>야근 기록하기.</em></h1>
+        <p class="login-hero__note">로그인하면 날짜를 눌러 야근 시간을 기록하고, 다른 기기에서도 같은 기록을 볼 수 있어요. Toolbox N 과 같은 계정이에요.</p>
+        <div class="login-hero__actions">
+          <button type="button" class="btn btn--tertiary btn--l" id="demo">로그인 없이 둘러보기</button>
+          <a class="btn btn--text btn--l" href="calculator.html">야근 수당 계산기만 쓰기 →</a>
+        </div>
+      </div>
+      <div class="card auth-card">
       <div class="auth-tabs" role="tablist" aria-label="로그인 방식">
         <button type="button" class="auth-tab" id="tab-login" role="tab" aria-selected="true">로그인</button>
         <button type="button" class="auth-tab" id="tab-signup" role="tab" aria-selected="false">회원가입</button>
@@ -248,6 +268,7 @@
         <button type="submit" class="btn btn--primary btn--l btn--block" id="auth-submit">로그인</button>
         <button type="button" class="btn btn--tertiary btn--l btn--block" id="auth-google">Google로 계속하기</button>
       </form>
+      </div>
     </section>
 
     <!-- 비밀번호 재설정 메일 링크로 돌아왔을 때만 보여요 -->
@@ -273,7 +294,8 @@
 
     <!-- 로그인 후: 실제 앱 -->
     <div id="app-content" hidden>
-    <p class="notice">기록은 로그인한 계정에 저장돼서 다른 기기에서도 로그인하면 같은 기록을 볼 수 있어요. 그래도 가끔 엑셀로 내보내 백업해 두면 안전해요.</p>
+    <div class="demo-bar" id="demo-bar" hidden><span>데모 모드 · 기록이 이 브라우저에만 저장돼요.</span><button type="button" class="btn btn--primary btn--s" id="demo-exit">로그인하러 가기</button></div>
+    <p class="notice" id="account-notice">기록은 로그인한 계정에 저장돼서 다른 기기에서도 로그인하면 같은 기록을 볼 수 있어요. 그래도 가끔 엑셀로 내보내 백업해 두면 안전해요.</p>
     <input type="file" id="import-file" accept=".xlsx,.xls,.csv" hidden>
 
     <div class="layout">
@@ -625,10 +647,30 @@
   const SUPABASE_ANON_KEY = 'sb_publishable_CXRMk39pbimqAKXsCysKvA_bDsBHQD7';
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   let session = null;
+  // 데모 모드: 로그인 없이 둘러볼 때 기록을 이 브라우저에만 저장해요
+  const DEMO_MODE_KEY = 'overtime.demo.mode';
+  const DEMO_DATA_KEY = 'overtime.demo.data';
+  let demo = false;
+  const demoSave = () => { try { localStorage.setItem(DEMO_DATA_KEY, JSON.stringify(state)); } catch (e) { /* 저장 공간이 없어도 화면은 동작해요 */ } };
+  function demoSeed() {
+    const d = new Date(), y = d.getFullYear(), m = d.getMonth();
+    const day = (n) => keyOf(y, m, Math.min(n, new Date(y, m + 1, 0).getDate()));
+    return { salary: 3000000, entries: {
+      [day(2)]: { start: '18:00', end: '21:00' },
+      [day(5)]: { start: '19:00', end: '23:30' }, // 평일 22시 이후는 연장근로(2배)
+      [day(9)]: { start: '18:30', end: '20:30' },
+      [day(13)]: { start: '10:00', end: '20:00' },
+      [day(16)]: { start: '18:00', end: '22:30' },
+    } };
+  }
   let state = { salary: 0, entries: {} }; // 로그인 후 Supabase에서 채워져요
 
   // Supabase 테이블 → 화면에서 쓰는 state 형태로 바꿔요.
   async function fetchRemoteState() {
+    if (demo) {
+      try { const saved = normalize(JSON.parse(localStorage.getItem(DEMO_DATA_KEY))); if (Object.keys(saved.entries).length || saved.salary) return saved; } catch (e) { /* 처음이면 예시로 채워요 */ }
+      return demoSeed();
+    }
     const [{ data: rows, error: e1 }, { data: settingsRow, error: e2 }] = await Promise.all([
       sb.from('overtime_entries').select('entry_date, start_time, end_time'),
       sb.from('overtime_settings').select('salary').maybeSingle(),
@@ -643,6 +685,7 @@
   async function saveEntryRemote(key, entry) {
     state.entries[key] = entry;
     renderAll();
+    if (demo) { demoSave(); return; }
     const { error } = await sb.from('overtime_entries').upsert(
       { user_id: session.user.id, entry_date: key, start_time: entry.start, end_time: entry.end },
       { onConflict: 'user_id,entry_date' },
@@ -652,17 +695,20 @@
   async function deleteEntryRemote(key) {
     delete state.entries[key];
     renderAll();
+    if (demo) { demoSave(); return; }
     const { error } = await sb.from('overtime_entries').delete().eq('entry_date', key);
     if (error) toast('삭제하지 못했어요. 다시 시도해 주세요');
   }
   async function saveSalaryRemote(value) {
     state.salary = value;
     renderAll();
+    if (demo) { demoSave(); return; }
     const { error } = await sb.from('overtime_settings').upsert({ user_id: session.user.id, salary: value });
     if (error) toast('저장하지 못했어요. 다시 시도해 주세요');
   }
   // 엑셀 가져오기처럼 전체를 통째로 바꿀 때 써요. 기존 기록을 지우고 새로 넣어요.
   async function replaceAllRemote(entries, salary) {
+    if (demo) { state = { salary: salary || 0, entries }; demoSave(); renderAll(); return true; }
     const uid = session.user.id;
     const rows = Object.entries(entries).map(([entry_date, e]) => ({ user_id: uid, entry_date, start_time: e.start, end_time: e.end }));
     const { error: delErr } = await sb.from('overtime_entries').delete().neq('entry_date', '0001-01-01');
@@ -1337,7 +1383,32 @@
     showAuthMessage(error ? '메일을 보내지 못했어요' : '비밀번호 재설정 메일을 보냈어요. 메일함을 확인해 주세요.', !!error);
   });
 
-  $('logout').addEventListener('click', () => sb.auth.signOut());
+  $('logout').addEventListener('click', () => (demo ? exitDemo() : sb.auth.signOut()));
+  $('demo').addEventListener('click', () => { try { localStorage.setItem(DEMO_MODE_KEY, 'demo'); } catch (e) { /* 무시 */ } enterDemo(); });
+  $('demo-exit').addEventListener('click', () => { exitDemo(); authEmailEl.focus(); });
+  const demoWanted = () => { try { return localStorage.getItem(DEMO_MODE_KEY) === 'demo'; } catch (e) { return false; } };
+  function exitDemo() {
+    try { localStorage.removeItem(DEMO_MODE_KEY); } catch (e) { /* 무시 */ }
+    demo = false;
+    leaveApp();
+  }
+  async function enterDemo() {
+    demo = true;
+    session = null;
+    document.body.classList.remove('is-logged-out');
+    authGate.hidden = true;
+    resetGate.hidden = true;
+    pendingGate.hidden = true;
+    $('demo-bar').hidden = false;
+    $('account-notice').hidden = true;
+    accountEmail.textContent = '데모 모드';
+    pageActions.hidden = false;
+    appContent.hidden = false;
+    $('year-section').hidden = false;
+    state = await fetchRemoteState();
+    salaryInput.value = state.salary ? state.salary.toLocaleString('ko-KR') : '';
+    renderAll();
+  }
   // 구글 로그인 (Toolbox N 과 같은 계정). 로그인 후 이 페이지로 돌아와요.
   $('auth-google').addEventListener('click', async () => {
     const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
@@ -1383,6 +1454,12 @@
   }
 
   async function enterApp(newSession) {
+    // 로그인하면 데모는 끝나요
+    demo = false;
+    try { localStorage.removeItem(DEMO_MODE_KEY); } catch (e) { /* 무시 */ }
+    document.body.classList.remove('is-logged-out');
+    $('demo-bar').hidden = true;
+    $('account-notice').hidden = false;
     session = newSession;
     authGate.hidden = true;
     resetGate.hidden = true;
@@ -1410,7 +1487,10 @@
   }
 
   function leaveApp() {
+    if (demo) return; // 데모 중에는 로그인 화면으로 바꾸지 않아요
     session = null;
+    document.body.classList.add('is-logged-out');
+    $('demo-bar').hidden = true;
     appContent.hidden = true;
     $('year-section').hidden = true;
     pageActions.hidden = true;
@@ -1430,7 +1510,7 @@
     if (event === 'SIGNED_OUT') { leaveApp(); return; }
     if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') { session = newSession; return; }
     if (newSession) enterApp(newSession);
-    else if (event === 'INITIAL_SESSION') leaveApp();
+    else if (event === 'INITIAL_SESSION') { if (demoWanted()) enterDemo(); else leaveApp(); }
   });
 </script>
 </body>
