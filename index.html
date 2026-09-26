@@ -619,8 +619,9 @@
     return out;
   }
 
-  const SUPABASE_URL = 'https://bcbqkijiubcsnrjxsoyi.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjYnFraWppdWJjc25yanhzb3lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMzU2NDQsImV4cCI6MjEwNTYxMTY0NH0.mkjpZ8qL9yjxAHITGgC7c_WvheI_Pklqs32V_uAx5bE';
+  // Toolbox N 공통 Supabase 프로젝트 — toolbox-n.vercel.app 의 야근 계산기와 같은 기록을 써요
+  const SUPABASE_URL = 'https://yrcelylksvmqacgvgdbq.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_CXRMk39pbimqAKXsCysKvA_bDsBHQD7';
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   let session = null;
   let state = { salary: 0, entries: {} }; // 로그인 후 Supabase에서 채워져요
@@ -628,8 +629,8 @@
   // Supabase 테이블 → 화면에서 쓰는 state 형태로 바꿔요.
   async function fetchRemoteState() {
     const [{ data: rows, error: e1 }, { data: settingsRow, error: e2 }] = await Promise.all([
-      sb.from('entries').select('entry_date, start_time, end_time'),
-      sb.from('settings').select('salary').maybeSingle(),
+      sb.from('overtime_entries').select('entry_date, start_time, end_time'),
+      sb.from('overtime_settings').select('salary').maybeSingle(),
     ]);
     if (e1 || e2) { toast('데이터를 불러오지 못했어요. 새로고침해 주세요'); return { salary: 0, entries: {} }; }
     const entries = {};
@@ -641,7 +642,7 @@
   async function saveEntryRemote(key, entry) {
     state.entries[key] = entry;
     renderAll();
-    const { error } = await sb.from('entries').upsert(
+    const { error } = await sb.from('overtime_entries').upsert(
       { user_id: session.user.id, entry_date: key, start_time: entry.start, end_time: entry.end },
       { onConflict: 'user_id,entry_date' },
     );
@@ -650,26 +651,26 @@
   async function deleteEntryRemote(key) {
     delete state.entries[key];
     renderAll();
-    const { error } = await sb.from('entries').delete().eq('entry_date', key);
+    const { error } = await sb.from('overtime_entries').delete().eq('entry_date', key);
     if (error) toast('삭제하지 못했어요. 다시 시도해 주세요');
   }
   async function saveSalaryRemote(value) {
     state.salary = value;
     renderAll();
-    const { error } = await sb.from('settings').upsert({ user_id: session.user.id, salary: value });
+    const { error } = await sb.from('overtime_settings').upsert({ user_id: session.user.id, salary: value });
     if (error) toast('저장하지 못했어요. 다시 시도해 주세요');
   }
   // 엑셀 가져오기처럼 전체를 통째로 바꿀 때 써요. 기존 기록을 지우고 새로 넣어요.
   async function replaceAllRemote(entries, salary) {
     const uid = session.user.id;
     const rows = Object.entries(entries).map(([entry_date, e]) => ({ user_id: uid, entry_date, start_time: e.start, end_time: e.end }));
-    const { error: delErr } = await sb.from('entries').delete().neq('entry_date', '0001-01-01');
+    const { error: delErr } = await sb.from('overtime_entries').delete().neq('entry_date', '0001-01-01');
     if (delErr) { toast('가져오기에 실패했어요'); return false; }
     if (rows.length) {
-      const { error: insErr } = await sb.from('entries').insert(rows);
+      const { error: insErr } = await sb.from('overtime_entries').insert(rows);
       if (insErr) { toast('가져오기에 실패했어요'); return false; }
     }
-    const { error: salErr } = await sb.from('settings').upsert({ user_id: uid, salary: salary || 0 });
+    const { error: salErr } = await sb.from('overtime_settings').upsert({ user_id: uid, salary: salary || 0 });
     if (salErr) toast('월급을 저장하지 못했어요');
     state = { salary: salary || 0, entries };
     renderAll();
@@ -1319,7 +1320,7 @@
       } else {
         const { data, error } = await sb.auth.signUp({ email, password });
         if (error) throw error;
-          if (!data.session) showAuthMessage('가입 확인 메일을 보냈어요. 메일함에서 링크를 눌러 인증해 주세요. 인증 후에도 관리자 승인이 필요해요.', false);
+          if (!data.session) showAuthMessage('가입 확인 메일을 보냈어요. 메일함에서 링크를 눌러 인증해 주세요. 인증 후에도 관리자가 허용 목록에 추가해야 쓸 수 있어요.', false);
       }
     } catch (err) {
       showAuthMessage(authErrorMessage(err), true);
@@ -1382,9 +1383,9 @@
     pendingGate.hidden = true;
     accountEmail.textContent = session.user.email;
 
-    // 관리자가 승인한 계정인지 확인해요. 승인 전에는 entries/settings 조회 자체가 막혀 있어요.
-    const { data: profile, error } = await sb.from('profiles').select('approved').eq('user_id', session.user.id).maybeSingle();
-    if (error || !profile || !profile.approved) {
+    // 허용된 계정인지 확인해요 (Toolbox N 공통 allowed_users). 허용 전에는 기록 조회 자체가 막혀 있어요.
+    const { data: allowed, error } = await sb.rpc('is_allowed');
+    if (error || !allowed) {
       pendingGate.hidden = false;
       pageActions.hidden = true;
       appContent.hidden = true;
