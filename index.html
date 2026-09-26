@@ -246,6 +246,7 @@
         </div>
         <p class="preview" id="auth-message" hidden></p>
         <button type="submit" class="btn btn--primary btn--l btn--block" id="auth-submit">로그인</button>
+        <button type="button" class="btn btn--tertiary btn--l btn--block" id="auth-google">Google로 계속하기</button>
       </form>
     </section>
 
@@ -1337,6 +1338,11 @@
   });
 
   $('logout').addEventListener('click', () => sb.auth.signOut());
+  // 구글 로그인 (Toolbox N 과 같은 계정). 로그인 후 이 페이지로 돌아와요.
+  $('auth-google').addEventListener('click', async () => {
+    const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
+    if (error) showAuthMessage('구글 로그인을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.', true);
+  });
   $('pending-logout').addEventListener('click', () => sb.auth.signOut());
 
   // ── 비밀번호 재설정 ──
